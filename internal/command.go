@@ -104,5 +104,6 @@ func DecodeCommand(r io.Reader, p []byte) (*Command, error) {
 }
 
 func CacheBefore(key []byte) *Command {
-	return nil
+	params := [][]byte{key}
+	return &Command{CacheBeforeBytes, params, nil}
 }

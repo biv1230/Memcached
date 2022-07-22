@@ -1,7 +1,12 @@
 package Memcached
 
-import "Memcached/internal"
+import (
+	"Memcached/internal"
+	"Memcached/server"
+)
 
-type CacheMain struct {
-	Log internal.Logger
+type CacheManager struct {
+	Log       internal.Logger
+	TcpServer *server.TcpServer
+	Connes    map[string]server.Conner
 }
