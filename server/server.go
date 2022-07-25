@@ -1,32 +1,41 @@
 package server
 
 import (
+	"Memcached/internal"
 	"context"
 	"io"
 	"net"
-	"sync"
-
-	"Memcached/internal"
 )
+
+type TcpID []byte
 
 type protocol interface {
 	IoLoop() error
 }
 
 type TcpServer struct {
+	ID     TcpID
 	Ctx    context.Context
 	Cancel context.CancelFunc
 
 	lg internal.Logger
 
 	TCPAddress string
-
-	clientV1Connects sync.Map
-	clientV2Connects sync.Map
 }
 
-func (ts *TcpServer) Handler(conn net.Conn) {
-	ts.lg.Infof("TCP: new client(%s)", conn.RemoteAddr())
+func NewTcpServer(ctx context.Context, addr string, logger internal.Logger) *TcpServer {
+	ts := TcpServer{
+		ID:         []byte(addr),
+		lg:         logger,
+		TCPAddress: addr,
+	}
+	ts.Ctx, ts.Cancel = context.WithCancel(ctx)
+	return &ts
+}
+
+func (ts *TcpServer) handler(conn net.Conn) {
+	ts.lg.Infof("TCP: new client(%s)", conn.RemoteAddr().String())
+	ts.lg.Infof("TCP: new client(%s)", conn.LocalAddr())
 
 	buf := make([]byte, 4)
 	_, err := io.ReadFull(conn, buf)
@@ -42,10 +51,8 @@ func (ts *TcpServer) Handler(conn net.Conn) {
 	switch protocolMagic {
 	case string(internal.ClientV1):
 		p = NewClientV1(ts.Ctx, ts.lg, conn)
-		ts.clientV1Connects.Store(conn.RemoteAddr(), p)
 	case string(internal.ClientV2):
 		p = NewClientV2()
-		ts.clientV2Connects.Store(conn.RemoteAddr(), p)
 	default:
 		conn.Close()
 		ts.lg.Errorf("client(%s) bad protocol magic %s", conn.RemoteAddr(), protocolMagic)
@@ -58,14 +65,15 @@ func (ts *TcpServer) Handler(conn net.Conn) {
 	}
 	switch protocolMagic {
 	case string(internal.ClientV1):
-		ts.clientV1Connects.Delete(conn.RemoteAddr())
+
 	case string(internal.ClientV2):
-		ts.clientV2Connects.Delete(conn.RemoteAddr())
+
 	}
 	conn.Close()
 }
 
 func (ts *TcpServer) Start() error {
+	ts.lg.Infof("tcp listening: [%s]", ts.TCPAddress)
 	listener, err := net.Listen("tcp", ts.TCPAddress)
 	if err != nil {
 		ts.lg.Errorf("listen (%s) failed - %s", ts.TCPAddress, err)
@@ -82,7 +90,7 @@ func (ts *TcpServer) Start() error {
 				ts.lg.Errorf("client connect error - %s", err)
 			}
 			go func() {
-				ts.Handler(c)
+				ts.handler(c)
 			}()
 		}
 	}

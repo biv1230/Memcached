@@ -10,6 +10,7 @@ import (
 )
 
 type clientV1 struct {
+	name   string
 	ctx    context.Context
 	cancel context.CancelFunc
 	net.Conn
@@ -29,6 +30,10 @@ func NewClientV1(ctx context.Context, lg internal.Logger, conn net.Conn) *client
 	}
 	c.ctx, c.cancel = context.WithCancel(ctx)
 	return &c
+}
+
+func (c *clientV1) Name() string {
+	return c.name
 }
 
 func (c *clientV1) IoLoop() error {

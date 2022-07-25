@@ -8,5 +8,4 @@ import (
 type CacheManager struct {
 	Log       internal.Logger
 	TcpServer *server.TcpServer
-	Connes    map[string]server.Conner
 }

@@ -9,6 +9,7 @@ import (
 )
 
 var (
+	AuthBytes        []byte = []byte("IDENTIFY")
 	CacheBeforeBytes []byte = []byte("BEFORE")
 	CachingBytes     []byte = []byte("CACHING")
 	CacheAfterBytes  []byte = []byte("AFTER")
@@ -106,4 +107,9 @@ func DecodeCommand(r io.Reader, p []byte) (*Command, error) {
 func CacheBefore(key []byte) *Command {
 	params := [][]byte{key}
 	return &Command{CacheBeforeBytes, params, nil}
+}
+
+func Auth(key []byte) *Command {
+	params := [][]byte{key}
+	return &Command{AuthBytes, params, nil}
 }
