@@ -1,13 +1,17 @@
 package main
 
 import (
-	"Memcached/server"
-	"context"
-
+	"Memcached"
 	"github.com/sirupsen/logrus"
+	"time"
 )
 
 func main() {
-	ts := server.NewTcpServer(context.Background(), ":0321", logrus.New())
-	ts.Start()
+	cf := &Memcached.Config{
+		TcpServerAddr: "127.0.0.1:3001",
+		RemoteAddrArr: []string{"127.0.0.1:3001", "127.0.0.1:3002", "127.0.0.1:3003"},
+	}
+	Memcached.Start(cf, logrus.New())
+
+	time.Sleep(time.Hour)
 }

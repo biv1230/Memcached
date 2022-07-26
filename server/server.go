@@ -12,6 +12,7 @@ type TcpServer struct {
 	Ctx    context.Context
 	Cancel context.CancelFunc
 
+	mc         *ConnManager
 	TCPAddress string
 }
 
@@ -54,7 +55,7 @@ func (ts *TcpServer) handler(conn net.Conn) {
 			return
 		}
 		p = NewClientV1(ts.Ctx, conn, bf, string(com.Params[1]))
-		AddConn(p)
+		ts.mc.AddConn(p)
 
 	case internal.ClientV2Str:
 		p = NewClientV2()
@@ -70,7 +71,7 @@ func (ts *TcpServer) handler(conn net.Conn) {
 	}
 	switch protocolMagic {
 	case string(internal.ClientV1):
-		RemoveConn(p)
+		ts.mc.RemoveConn(p)
 	case string(internal.ClientV2):
 
 	}
