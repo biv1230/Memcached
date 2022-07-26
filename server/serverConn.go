@@ -26,7 +26,7 @@ func NewClientV3(remoteAddr string) *clientV3 {
 
 func ConnOtherServer(remoteAddr string) (*clientV3, error) {
 	c := NewClientV3(remoteAddr)
-	conn, err := net.DialTimeout("tcp", c.remoteAddr, time.Second)
+	conn, err := net.DialTimeout("tcp", c.remoteAddr, 2*time.Second)
 	if err != nil {
 		return nil, err
 	}
