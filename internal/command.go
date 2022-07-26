@@ -55,7 +55,7 @@ func NewCommand(name []byte, params [][]byte, body []byte) *Command {
 	}
 }
 
-func (c *Command) WriteTo(w io.Writer) (int, error) {
+func (c *Command) WriteTo(w *bufio.Writer) (int, error) {
 	var total int
 	var buf [4]byte
 
@@ -97,6 +97,7 @@ func (c *Command) WriteTo(w io.Writer) (int, error) {
 			return total, err
 		}
 	}
+	w.Flush()
 	return total, nil
 }
 

@@ -27,7 +27,7 @@ func NewTcpServer(ctx context.Context, addr string) *TcpServer {
 func (ts *TcpServer) handler(conn net.Conn) {
 	internal.Lg.Infof("TCP: new client(%s)", conn.RemoteAddr().String())
 
-	bf := bufio.NewReader(conn)
+	bf, wf := bufio.NewReader(conn), bufio.NewWriter(conn)
 
 	com, err := internal.ReadCommand(bf)
 	if err != nil {
@@ -49,7 +49,7 @@ func (ts *TcpServer) handler(conn net.Conn) {
 
 	switch protocolMagic {
 	case internal.ClientV1Str:
-		if _, err := internal.SucConner.WriteTo(conn); err != nil {
+		if _, err := internal.SucConner.WriteTo(wf); err != nil {
 			internal.Lg.Errorf("failed to read protocol version - %s", err)
 			conn.Close()
 			return

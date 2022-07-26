@@ -1,8 +1,8 @@
 package internal
 
 const (
-	ClientV1Str = "  V1"
-	ClientV2Str = "  V2"
+	ClientV1Str = "V1"
+	ClientV2Str = "V2"
 )
 
 var (
