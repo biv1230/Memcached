@@ -36,7 +36,7 @@ func CMStart(ctx context.Context, cf *Config) (*ConnManager, error) {
 	}
 	mc.Ctx, mc.Cancel = context.WithCancel(ctx)
 	mc.ts = NewTcpServer(mc.Ctx, cf.TcpServerAddr)
-
+	go mc.ts.Start()
 	mc.connRemotes()
 
 	return mc, nil

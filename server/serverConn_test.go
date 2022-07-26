@@ -2,6 +2,7 @@ package server
 
 import (
 	"Memcached/internal"
+	"context"
 	"github.com/sirupsen/logrus"
 	"testing"
 )
@@ -14,8 +15,8 @@ const (
 
 func init() {
 	internal.Lg = logrus.New()
-	//ts = NewTcpServer(context.Background(), tcpServer)
-	//go ts.Start()
+	ts = NewTcpServer(context.Background(), tcpServer)
+	go ts.Start()
 }
 
 func TestConnOtherServer(t *testing.T) {
