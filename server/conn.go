@@ -24,14 +24,16 @@ type ConnManager struct {
 	Ctx    context.Context
 	Cancel context.CancelFunc
 
-	Config
+	*Config
 	ts      *TcpServer
 	ConnMap map[string]Conner
 	sync.RWMutex
 }
 
 func CMStart(ctx context.Context, cf *Config) (*ConnManager, error) {
-	mc := &ConnManager{}
+	mc := &ConnManager{
+		Config: cf,
+	}
 	mc.Ctx, mc.Cancel = context.WithCancel(ctx)
 	mc.ts = NewTcpServer(mc.Ctx, cf.TcpServerAddr)
 
