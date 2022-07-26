@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"errors"
@@ -9,15 +10,16 @@ import (
 )
 
 var (
-	AuthBytes        []byte = []byte("IDENTIFY")
+	IdentifyBytes    []byte = []byte("IDENTIFY")
 	CacheBeforeBytes []byte = []byte("BEFORE")
 	CachingBytes     []byte = []byte("CACHING")
 	CacheAfterBytes  []byte = []byte("AFTER")
 )
 
 var (
-	ByteSpace   = []byte(" ")
-	ByteNewLine = []byte("\n")
+	NewLine     byte = '\n'
+	ByteSpace        = []byte(" ")
+	ByteNewLine      = []byte{NewLine}
 )
 
 type Command struct {
@@ -27,6 +29,9 @@ type Command struct {
 }
 
 func NewCommand(name []byte, params [][]byte, body []byte) *Command {
+	if body == nil {
+		body = []byte{}
+	}
 	return &Command{
 		name,
 		params,
@@ -79,7 +84,7 @@ func (c *Command) WriteTo(w io.Writer) (int, error) {
 	return total, nil
 }
 
-func DecodeCommand(r io.Reader, p []byte) (*Command, error) {
+func decodeBody(r *bufio.Reader, p []byte) (*Command, error) {
 	params := bytes.Split(p, ByteSpace)
 	var buf [4]byte
 	var body []byte
@@ -106,10 +111,22 @@ func DecodeCommand(r io.Reader, p []byte) (*Command, error) {
 
 func CacheBefore(key []byte) *Command {
 	params := [][]byte{key}
-	return &Command{CacheBeforeBytes, params, nil}
+	return NewCommand(CacheBeforeBytes, params, nil)
 }
 
-func Auth(key []byte) *Command {
-	params := [][]byte{key}
-	return &Command{AuthBytes, params, nil}
+func Identify(ver []byte, id []byte) *Command {
+	params := [][]byte{ver, id}
+	return NewCommand(IdentifyBytes, params, nil)
+}
+
+func ReadCommand(r *bufio.Reader) (*Command, error) {
+	line, err := r.ReadBytes(NewLine)
+	if err != nil {
+		return nil, err
+	}
+	line = line[:len(line)-1]
+	if len(line) > 0 && line[len(line)-1] == '\r' {
+		line = line[:len(line)-1]
+	}
+	return decodeBody(r, line)
 }

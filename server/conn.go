@@ -10,6 +10,7 @@ var (
 type Conner interface {
 	Name() string
 	Close() error
+	IoLoop() error
 }
 
 func IsHas(c Conner) bool {

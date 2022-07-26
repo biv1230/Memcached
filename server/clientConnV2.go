@@ -9,6 +9,7 @@ import (
 )
 
 type clientV2 struct {
+	name   string
 	ctx    context.Context
 	cancel context.CancelFunc
 	net.Conn
@@ -21,6 +22,14 @@ type clientV2 struct {
 
 func NewClientV2() *clientV2 {
 	return nil
+}
+
+func (c *clientV2) Name() string {
+	return ""
+}
+
+func (c *clientV2) Close() error {
+	return c.Conn.Close()
 }
 
 func (c *clientV2) IoLoop() error {

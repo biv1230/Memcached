@@ -2,19 +2,12 @@ package server
 
 import (
 	"Memcached/internal"
+	"bufio"
 	"context"
-	"io"
 	"net"
 )
 
-type TcpID []byte
-
-type protocol interface {
-	IoLoop() error
-}
-
 type TcpServer struct {
-	ID     TcpID
 	Ctx    context.Context
 	Cancel context.CancelFunc
 
@@ -25,32 +18,34 @@ type TcpServer struct {
 
 func NewTcpServer(ctx context.Context, addr string, logger internal.Logger) *TcpServer {
 	ts := TcpServer{
-		ID:         []byte(addr),
 		lg:         logger,
 		TCPAddress: addr,
 	}
 	ts.Ctx, ts.Cancel = context.WithCancel(ctx)
+	internal.Lg = logger
 	return &ts
 }
 
 func (ts *TcpServer) handler(conn net.Conn) {
 	ts.lg.Infof("TCP: new client(%s)", conn.RemoteAddr().String())
-	ts.lg.Infof("TCP: new client(%s)", conn.LocalAddr())
 
-	buf := make([]byte, 4)
-	_, err := io.ReadFull(conn, buf)
+	bf := bufio.NewReader(conn)
+
+	com, err := internal.ReadCommand(bf)
 	if err != nil {
 		ts.lg.Errorf("failed to read protocol version - %s", err)
 		conn.Close()
 		return
 	}
-	protocolMagic := string(buf)
+	protocolMagic := string(com.Params[0])
 	ts.lg.Infof("client(%s): protocol magic [%s]", conn.RemoteAddr(), protocolMagic)
-	var p protocol
+	var p Conner
 
 	switch protocolMagic {
 	case string(internal.ClientV1):
-		p = NewClientV1(ts.Ctx, ts.lg, conn)
+		p = NewClientV1(ts.Ctx, ts.lg, conn, string(com.Params[1]))
+		AddConn(p)
+
 	case string(internal.ClientV2):
 		p = NewClientV2()
 	default:

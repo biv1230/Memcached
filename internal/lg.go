@@ -1,5 +1,7 @@
 package internal
 
+var Lg Logger
+
 type Logger interface {
 	Info(args ...interface{})
 	Warn(args ...interface{})
