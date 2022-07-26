@@ -15,17 +15,14 @@ type clientV1 struct {
 	cancel context.CancelFunc
 	net.Conn
 
-	lg internal.Logger
-
 	r *bufio.Reader
 	w *bufio.Writer
 }
 
-func NewClientV1(ctx context.Context, lg internal.Logger, conn net.Conn, fromID string) *clientV1 {
+func NewClientV1(ctx context.Context, conn net.Conn, r *bufio.Reader, fromID string) *clientV1 {
 	c := clientV1{
 		Conn:   conn,
-		lg:     lg,
-		r:      bufio.NewReader(conn),
+		r:      r,
 		w:      bufio.NewWriter(conn),
 		fromID: fromID,
 	}
@@ -45,12 +42,12 @@ func (c *clientV1) IoLoop() error {
 	for {
 		select {
 		case <-c.ctx.Done():
-			c.lg.Infof("%s close connect", c.RemoteAddr())
+			internal.Lg.Infof("%s close connect", c.RemoteAddr())
 			goto exit
 		default:
 			com, err := internal.ReadCommand(c.r)
 			if err != nil {
-				c.lg.Errorf("[%s] %s", c.RemoteAddr(), err)
+				internal.Lg.Errorf("[%s] %s", c.RemoteAddr(), err)
 				continue
 			}
 			c.ExecCommand(com)
@@ -66,7 +63,7 @@ func (c *clientV1) writerLoop(commChan <-chan *internal.Command) error {
 	for {
 		select {
 		case <-c.ctx.Done():
-			c.lg.Infof("%s close connect", c.RemoteAddr())
+			internal.Lg.Infof("%s close connect", c.RemoteAddr())
 			err = errors.New(fmt.Sprintf("%s close connect", c.RemoteAddr()))
 			goto exit
 		case comm := <-commChan:
@@ -78,6 +75,10 @@ exit:
 	return err
 }
 
-func (c *clientV1) ExecCommand(comm *internal.Command) error {
+func (c *clientV1) ExecCommand(com *internal.Command) error {
+	switch string(com.Params[1]) {
+	case internal.IdentifyString:
+
+	}
 	return nil
 }

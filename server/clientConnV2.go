@@ -4,8 +4,6 @@ import (
 	"bufio"
 	"context"
 	"net"
-
-	"Memcached/internal"
 )
 
 type clientV2 struct {
@@ -13,8 +11,6 @@ type clientV2 struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	net.Conn
-
-	lg internal.Logger
 
 	r *bufio.Reader
 	w *bufio.Writer

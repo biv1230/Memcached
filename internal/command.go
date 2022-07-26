@@ -9,18 +9,34 @@ import (
 	"io"
 )
 
-var (
-	IdentifyBytes    []byte = []byte("IDENTIFY")
-	CacheBeforeBytes []byte = []byte("BEFORE")
-	CachingBytes     []byte = []byte("CACHING")
-	CacheAfterBytes  []byte = []byte("AFTER")
+const (
+	IdentifyString    = "IDENTIFY"
+	SucConnString     = "CONNECTSUC"
+	FaiConnString     = "CONNECTFAI"
+	CacheBeforeString = "BEFORE"
+	CachingString     = "CACHING"
+	CacheAfterString  = "AFTER"
 )
 
 var (
 	NewLine     byte = '\n'
 	ByteSpace        = []byte(" ")
 	ByteNewLine      = []byte{NewLine}
+
+	IdentifyBytes    = []byte(IdentifyString)
+	SucConnBytes     = []byte(SucConnString)
+	FaiConnBytes     = []byte(FaiConnString)
+	CacheBeforeBytes = []byte(CacheBeforeString)
+	CachingBytes     = []byte(CachingString)
+	CacheAfterBytes  = []byte(CacheAfterString)
+
+	SucConner *Command
+	FaiConner *Command
 )
+
+func init() {
+	SucConner, FaiConner = sucConn(), failConn()
+}
 
 type Command struct {
 	Name   []byte
@@ -117,6 +133,14 @@ func CacheBefore(key []byte) *Command {
 func Identify(ver []byte, id []byte) *Command {
 	params := [][]byte{ver, id}
 	return NewCommand(IdentifyBytes, params, nil)
+}
+
+func sucConn() *Command {
+	return NewCommand(SucConnBytes, nil, nil)
+}
+
+func failConn() *Command {
+	return NewCommand(FaiConnBytes, nil, nil)
 }
 
 func ReadCommand(r *bufio.Reader) (*Command, error) {

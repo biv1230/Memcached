@@ -40,7 +40,7 @@ func AllCones() map[string]Conner {
 	return ConnMap
 }
 
-func Delete(c Conner) {
+func RemoveConn(c Conner) {
 	sr.Lock()
 	defer sr.Unlock()
 	delete(ConnMap, c.Name())
