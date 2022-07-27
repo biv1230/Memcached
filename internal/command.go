@@ -97,8 +97,7 @@ func (c *Command) WriteTo(w *bufio.Writer) (int, error) {
 			return total, err
 		}
 	}
-	w.Flush()
-	return total, nil
+	return total, w.Flush()
 }
 
 func decodeBody(r *bufio.Reader, p []byte) (*Command, error) {

@@ -21,6 +21,7 @@ type Config struct {
 }
 
 type ConnManager struct {
+	ID     string
 	Ctx    context.Context
 	Cancel context.CancelFunc
 
@@ -32,10 +33,14 @@ type ConnManager struct {
 
 func CMStart(ctx context.Context, cf *Config) (*ConnManager, error) {
 	mc := &ConnManager{
-		Config: cf,
+		ID:      cf.TcpServerAddr,
+		Config:  cf,
+		ConnMap: make(map[string]Conner),
 	}
 	mc.Ctx, mc.Cancel = context.WithCancel(ctx)
-	mc.ts = NewTcpServer(mc.Ctx, cf.TcpServerAddr)
+	ts := NewTcpServer(mc.Ctx, cf.TcpServerAddr)
+	ts.mc = mc
+	mc.ts = ts
 	go mc.ts.Start()
 	mc.connRemotes()
 
@@ -45,7 +50,7 @@ func CMStart(ctx context.Context, cf *Config) (*ConnManager, error) {
 func (sr *ConnManager) connRemotes() {
 	for _, addr := range sr.RemoteAddrArr {
 		if addr != sr.ts.TCPAddress && !sr.IsHas(addr) {
-			c, err := ConnOtherServer(addr)
+			c, err := ConnOtherServer(addr, sr.TcpServerAddr)
 			if err != nil {
 				internal.Lg.Errorf("[%s] remoter err:", addr, err)
 			} else {

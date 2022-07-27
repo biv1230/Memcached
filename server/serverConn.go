@@ -9,7 +9,7 @@ import (
 )
 
 type clientV3 struct {
-	toID       string
+	name       string
 	remoteAddr string
 	net.Conn
 
@@ -17,35 +17,34 @@ type clientV3 struct {
 	w *bufio.Writer
 }
 
-func NewClientV3(remoteAddr string) *clientV3 {
+func NewClientV3(remoteAddr, CmID string) *clientV3 {
 	return &clientV3{
-		toID:       remoteAddr,
 		remoteAddr: remoteAddr,
 	}
 }
 
-func ConnOtherServer(remoteAddr string) (*clientV3, error) {
-	c := NewClientV3(remoteAddr)
+func ConnOtherServer(remoteAddr, CmID string) (*clientV3, error) {
+	c := NewClientV3(remoteAddr, CmID)
 	conn, err := net.DialTimeout("tcp", c.remoteAddr, 2*time.Second)
 	if err != nil {
 		return nil, err
 	}
-	c.r = bufio.NewReader(conn)
-	c.w = bufio.NewWriter(conn)
-	com := internal.Identify(internal.ClientV1, []byte(c.remoteAddr))
+	c.r, c.w = bufio.NewReader(conn), bufio.NewWriter(conn)
+	com := internal.Identify(internal.ClientV1, []byte(CmID))
 	if _, err := com.WriteTo(c.w); err != nil {
 		internal.Lg.Errorf("identify error:[%s]", err)
 		conn.Close()
 		return nil, err
 	}
-	rcom, err := internal.ReadCommand(c.r)
+	rCom, err := internal.ReadCommand(c.r)
 	if err != nil {
 		internal.Lg.Errorf("wait return error:[%s]", err)
 		conn.Close()
 		return nil, err
 	}
-	if bytes.Equal(rcom.Name, internal.SucConnBytes) {
+	if bytes.Equal(rCom.Name, internal.SucConnBytes) {
 		internal.Lg.Infof("[%s] connect suc !!!", conn.RemoteAddr())
+		c.name = c.remoteAddr
 		go c.IoLoop()
 		return c, nil
 	} else {
@@ -56,7 +55,7 @@ func ConnOtherServer(remoteAddr string) (*clientV3, error) {
 }
 
 func (c *clientV3) Name() string {
-	return c.toID
+	return c.name
 }
 
 func (c *clientV3) Close() error {
