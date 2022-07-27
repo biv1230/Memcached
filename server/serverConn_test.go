@@ -2,6 +2,7 @@ package server
 
 import (
 	"Memcached/internal"
+	"context"
 	"github.com/sirupsen/logrus"
 	"testing"
 )
@@ -19,7 +20,7 @@ func init() {
 }
 
 func TestConnOtherServer(t *testing.T) {
-	_, err := ConnOtherServer(tcpServer, "test1")
+	_, err := ConnOtherServer(context.Background(), tcpServer, "test1")
 	if err != nil {
 		t.Errorf("conn err:[%s]", err)
 	}

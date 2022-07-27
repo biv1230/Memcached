@@ -1,6 +1,7 @@
-package internal
+package cache
 
 import (
+	"Memcached/internal"
 	"bytes"
 	"crypto/md5"
 	"encoding/binary"
@@ -34,8 +35,8 @@ func NewMessage(key, md5Value []byte, body []byte) (*Message, error) {
 }
 
 func (m *Message) ToByte() ([]byte, error) {
-	b := BufferPoolGet()
-	defer BufferPoolSet(b)
+	b := internal.BufferPoolGet()
+	defer internal.BufferPoolSet(b)
 	if err := binary.Write(b, binary.BigEndian, uint8(len(m.Key))); err != nil {
 		return nil, err
 	}
@@ -58,8 +59,8 @@ func (m *Message) ToByte() ([]byte, error) {
 }
 
 func DecodeMessage(b []byte) (*Message, error) {
-	bf := BufferPoolGet()
-	defer BufferPoolSet(bf)
+	bf := internal.BufferPoolGet()
+	defer internal.BufferPoolSet(bf)
 	bf.Write(b)
 	var l uint8
 	if err := binary.Read(bf, binary.BigEndian, &l); err != nil {
