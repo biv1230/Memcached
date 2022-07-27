@@ -17,13 +17,13 @@ type Config struct {
 	TcpServerAddr string
 	RemoteAddrArr []string
 
-	SyncTimeout time.Duration
+	SyncCheck time.Duration
 }
 
 type ConnManager struct {
 	ID     string
-	Ctx    context.Context
-	Cancel context.CancelFunc
+	ctx    context.Context
+	cancel context.CancelFunc
 
 	*Config
 	ts      *TcpServer
@@ -37,20 +37,34 @@ func CMStart(ctx context.Context, cf *Config) (*ConnManager, error) {
 		Config:  cf,
 		ConnMap: make(map[string]Conner),
 	}
-	mc.Ctx, mc.Cancel = context.WithCancel(ctx)
-	ts := NewTcpServer(mc.Ctx, cf.TcpServerAddr)
+	mc.ctx, mc.cancel = context.WithCancel(ctx)
+	ts := NewTcpServer(mc.ctx, cf.TcpServerAddr)
 	ts.mc = mc
 	mc.ts = ts
 	go mc.ts.Start()
-	mc.connRemotes()
+	go mc.connRemotes()
 
 	return mc, nil
+}
+
+func (sr *ConnManager) syncCheckConnes() {
+	ticker := time.NewTicker(sr.SyncCheck)
+	for {
+		select {
+		case <-sr.ctx.Done():
+			ticker.Stop()
+			goto exit
+		case <-ticker.C:
+			sr.connRemotes()
+		}
+	}
+exit:
 }
 
 func (sr *ConnManager) connRemotes() {
 	for _, addr := range sr.RemoteAddrArr {
 		if addr != sr.ts.TCPAddress && !sr.IsHas(addr) {
-			c, err := ConnOtherServer(addr, sr.TcpServerAddr)
+			c, err := ConnOtherServer(sr.ctx, addr, sr.TcpServerAddr)
 			if err != nil {
 				internal.Lg.Errorf("[%s] remoter err:", addr, err)
 			} else {
@@ -71,6 +85,7 @@ func (sr *ConnManager) AddConn(c Conner) {
 		sr.RUnlock()
 		internal.Lg.Infof("[%s] conner has exist", c.Name())
 		c.Close()
+		return
 	}
 	sr.RUnlock()
 	sr.Lock()

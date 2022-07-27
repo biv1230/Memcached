@@ -4,11 +4,15 @@ import (
 	"Memcached/internal"
 	"bufio"
 	"bytes"
+	"context"
 	"net"
 	"time"
 )
 
 type clientV3 struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+
 	name       string
 	remoteAddr string
 	net.Conn
@@ -17,15 +21,17 @@ type clientV3 struct {
 	w *bufio.Writer
 }
 
-func NewClientV3(remoteAddr, CmID string) *clientV3 {
-	return &clientV3{
+func NewClientV3(ctx context.Context, remoteAddr string) *clientV3 {
+	c := &clientV3{
 		remoteAddr: remoteAddr,
 	}
+	c.ctx, c.cancel = context.WithCancel(ctx)
+	return c
 }
 
-func ConnOtherServer(remoteAddr, CmID string) (*clientV3, error) {
-	c := NewClientV3(remoteAddr, CmID)
-	conn, err := net.DialTimeout("tcp", c.remoteAddr, 2*time.Second)
+func ConnOtherServer(ctx context.Context, remoteAddr, CmID string) (*clientV3, error) {
+	c := NewClientV3(ctx, remoteAddr)
+	conn, err := net.DialTimeout("tcp", c.remoteAddr, time.Second)
 	if err != nil {
 		return nil, err
 	}
@@ -62,6 +68,26 @@ func (c *clientV3) Close() error {
 	return c.Close()
 }
 
-func (c *clientV3) IoLoop() error {
+func (c *clientV3) ExecCommand(com *internal.Command) error {
+
 	return nil
+}
+
+func (c *clientV3) IoLoop() error {
+	for {
+		select {
+		case <-c.ctx.Done():
+			goto exit
+		default:
+			rCom, err := internal.ReadCommand(c.r)
+			if err != nil {
+				internal.Lg.Errorf("read from [%s] err:[%s]", c.RemoteAddr(), err)
+				goto exit
+			}
+			c.ExecCommand(rCom)
+		}
+	}
+exit:
+	internal.Lg.Infof("[%s]--->[%s] conn close", c.LocalAddr(), c.RemoteAddr())
+	return c.Close()
 }
