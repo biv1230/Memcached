@@ -19,7 +19,7 @@ func init() {
 }
 
 func TestConnOtherServer(t *testing.T) {
-	_, err := ConnOtherServer(tcpServer)
+	_, err := ConnOtherServer(tcpServer, "test1")
 	if err != nil {
 		t.Errorf("conn err:[%s]", err)
 	}

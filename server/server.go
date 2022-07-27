@@ -9,8 +9,8 @@ import (
 )
 
 type TcpServer struct {
-	Ctx    context.Context
-	Cancel context.CancelFunc
+	ctx    context.Context
+	cancel context.CancelFunc
 
 	mc         *ConnManager
 	TCPAddress string
@@ -20,7 +20,7 @@ func NewTcpServer(ctx context.Context, addr string) *TcpServer {
 	ts := TcpServer{
 		TCPAddress: addr,
 	}
-	ts.Ctx, ts.Cancel = context.WithCancel(ctx)
+	ts.ctx, ts.cancel = context.WithCancel(ctx)
 	return &ts
 }
 
@@ -54,7 +54,7 @@ func (ts *TcpServer) handler(conn net.Conn) {
 			conn.Close()
 			return
 		}
-		p = NewClientV1(ts.Ctx, conn, bf, string(com.Params[1]))
+		p = NewClientV1(ts.ctx, conn, bf, string(com.Params[1]))
 		ts.mc.AddConn(p)
 
 	case internal.ClientV2Str:
@@ -78,6 +78,11 @@ func (ts *TcpServer) handler(conn net.Conn) {
 	p.Close()
 }
 
+func (ts *TcpServer) Close() error {
+	ts.cancel()
+	return nil
+}
+
 func (ts *TcpServer) Start() error {
 	internal.Lg.Infof("tcp listening: [%s]", ts.TCPAddress)
 	listener, err := net.Listen("tcp", ts.TCPAddress)
@@ -87,7 +92,7 @@ func (ts *TcpServer) Start() error {
 	}
 	for {
 		select {
-		case <-ts.Ctx.Done():
+		case <-ts.ctx.Done():
 			internal.Lg.Infof("TCP: closing %s", listener.Addr())
 			return listener.Close()
 		default:

@@ -25,6 +25,7 @@ func (c *clientV2) Name() string {
 }
 
 func (c *clientV2) Close() error {
+	c.cancel()
 	return c.Conn.Close()
 }
 

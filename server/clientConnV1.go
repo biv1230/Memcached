@@ -35,6 +35,7 @@ func (c *clientV1) Name() string {
 }
 
 func (c *clientV1) Close() error {
+	c.cancel()
 	return c.Conn.Close()
 }
 
@@ -48,7 +49,7 @@ func (c *clientV1) IoLoop() error {
 			com, err := internal.ReadCommand(c.r)
 			if err != nil {
 				internal.Lg.Errorf("[%s] %s", c.RemoteAddr(), err)
-				continue
+				goto exit
 			}
 			c.ExecCommand(com)
 		}
