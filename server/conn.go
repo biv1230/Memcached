@@ -20,19 +20,19 @@ type Config struct {
 	SyncCheck time.Duration
 }
 
-type ConnManager struct {
+type TcpConnects struct {
 	ID     string
 	ctx    context.Context
 	cancel context.CancelFunc
 
 	*Config
-	ts      *TcpServer
+	ts      *Server
 	ConnMap map[string]Conner
 	sync.RWMutex
 }
 
-func CMStart(ctx context.Context, cf *Config) (*ConnManager, error) {
-	mc := &ConnManager{
+func CMStart(ctx context.Context, cf *Config) (*TcpConnects, error) {
+	mc := &TcpConnects{
 		ID:      cf.TcpServerAddr,
 		Config:  cf,
 		ConnMap: make(map[string]Conner),
@@ -47,7 +47,7 @@ func CMStart(ctx context.Context, cf *Config) (*ConnManager, error) {
 	return mc, nil
 }
 
-func (sr *ConnManager) syncCheckConnes() {
+func (sr *TcpConnects) syncCheckConnes() {
 	ticker := time.NewTicker(sr.SyncCheck)
 	for {
 		select {
@@ -61,7 +61,7 @@ func (sr *ConnManager) syncCheckConnes() {
 exit:
 }
 
-func (sr *ConnManager) connRemotes() {
+func (sr *TcpConnects) connRemotes() {
 	for _, addr := range sr.RemoteAddrArr {
 		if addr != sr.ts.TCPAddress && !sr.IsHas(addr) {
 			c, err := ConnOtherServer(sr.ctx, addr, sr.TcpServerAddr)
@@ -74,12 +74,12 @@ func (sr *ConnManager) connRemotes() {
 	}
 }
 
-func (sr *ConnManager) IsHas(name string) bool {
+func (sr *TcpConnects) IsHas(name string) bool {
 	_, ok := sr.ConnMap[name]
 	return ok
 }
 
-func (sr *ConnManager) AddConn(c Conner) {
+func (sr *TcpConnects) AddConn(c Conner) {
 	sr.RLock()
 	if sr.IsHas(c.Name()) {
 		sr.RUnlock()
@@ -98,13 +98,13 @@ func (sr *ConnManager) AddConn(c Conner) {
 	}
 }
 
-func (sr *ConnManager) AllCones() map[string]Conner {
+func (sr *TcpConnects) AllCones() map[string]Conner {
 	sr.RLock()
 	defer sr.RUnlock()
 	return sr.ConnMap
 }
 
-func (sr *ConnManager) RemoveConn(c Conner) {
+func (sr *TcpConnects) RemoveConn(c Conner) {
 	sr.Lock()
 	defer sr.Unlock()
 	delete(sr.ConnMap, c.Name())

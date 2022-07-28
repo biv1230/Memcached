@@ -7,47 +7,47 @@ import (
 	"time"
 )
 
-type Manager struct {
+type Caches struct {
 	Ctx    context.Context
 	Cancel context.CancelFunc
 	stores []*store
 }
 
-func NewManager(ctxParent context.Context, cap int) *Manager {
+func NewCaches(ctxParent context.Context, cap int) *Caches {
 	ctx, cancel := context.WithCancel(ctxParent)
 	stores := make([]*store, 0, cap)
 	for i := 0; i < cap; i++ {
 		s := newStore(ctx, i)
 		stores = append(stores, s)
 	}
-	return &Manager{
+	return &Caches{
 		Ctx:    ctx,
 		Cancel: cancel,
 		stores: stores,
 	}
 }
 
-func (m *Manager) determineStore(key []byte) int {
+func (m *Caches) determineStore(key []byte) int {
 	l := key[len(key)-1]
 	return int(l) % len(m.stores)
 }
 
-func (m *Manager) Add(msg *Message) {
+func (m *Caches) Add(msg *Message) {
 	index := m.determineStore(msg.Key)
 	m.stores[index].save(msg)
 }
 
-func (m *Manager) Get(key []byte) *Message {
+func (m *Caches) Get(key []byte) *Message {
 	index := m.determineStore(key)
 	return m.stores[index].get(string(key))
 }
 
-func (m *Manager) Delete(key []byte) {
+func (m *Caches) Delete(key []byte) {
 	index := m.determineStore(key)
 	m.stores[index].delete(string(key))
 }
 
-func (m *Manager) Len() int {
+func (m *Caches) Len() int {
 	l := 0
 	for _, v := range m.stores {
 		l += v.len()

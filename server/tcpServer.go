@@ -8,23 +8,23 @@ import (
 	"net"
 )
 
-type TcpServer struct {
+type Server struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	mc         *ConnManager
+	mc         *TcpConnects
 	TCPAddress string
 }
 
-func NewTcpServer(ctx context.Context, addr string) *TcpServer {
-	ts := TcpServer{
+func NewTcpServer(ctx context.Context, addr string) *Server {
+	ts := Server{
 		TCPAddress: addr,
 	}
 	ts.ctx, ts.cancel = context.WithCancel(ctx)
 	return &ts
 }
 
-func (ts *TcpServer) handler(conn net.Conn) {
+func (ts *Server) handler(conn net.Conn) {
 	internal.Lg.Infof("TCP: new client(%s)", conn.RemoteAddr().String())
 
 	bf, wf := bufio.NewReader(conn), bufio.NewWriter(conn)
@@ -78,12 +78,12 @@ func (ts *TcpServer) handler(conn net.Conn) {
 	p.Close()
 }
 
-func (ts *TcpServer) Close() error {
+func (ts *Server) Close() error {
 	ts.cancel()
 	return nil
 }
 
-func (ts *TcpServer) Start() error {
+func (ts *Server) Start() error {
 	internal.Lg.Infof("tcp listening: [%s]", ts.TCPAddress)
 	listener, err := net.Listen("tcp", ts.TCPAddress)
 	if err != nil {
