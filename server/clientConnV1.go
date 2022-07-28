@@ -46,7 +46,7 @@ func (c *clientV1) IoLoop() error {
 			internal.Lg.Infof("%s close connect", c.RemoteAddr())
 			goto exit
 		default:
-			com, err := internal.ReadCommand(c.r)
+			com, err := ReadCommand(c.r)
 			if err != nil {
 				internal.Lg.Errorf("[%s] %s", c.RemoteAddr(), err)
 				goto exit
@@ -59,7 +59,7 @@ exit:
 	return fmt.Errorf("%s close connect", c.RemoteAddr())
 }
 
-func (c *clientV1) writerLoop(commChan <-chan *internal.Command) error {
+func (c *clientV1) writerLoop(commChan <-chan *Command) error {
 	var err error
 	for {
 		select {
@@ -76,9 +76,9 @@ exit:
 	return err
 }
 
-func (c *clientV1) ExecCommand(com *internal.Command) error {
+func (c *clientV1) ExecCommand(com *Command) error {
 	switch string(com.Params[1]) {
-	case internal.IdentifyString:
+	case IdentifyString:
 
 	}
 	return nil

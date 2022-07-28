@@ -1,6 +1,7 @@
-package internal
+package server
 
 import (
+	"Memcached/internal"
 	"bytes"
 	"testing"
 )
@@ -11,8 +12,8 @@ func TestDecodeMessage(t *testing.T) {
 		Params: [][]byte{[]byte("x"), []byte("y"), []byte("z")},
 		Body:   []byte("this is  test"),
 	}
-	bf := BufferPoolGet()
-	defer BufferPoolSet(bf)
+	bf := internal.BufferPoolGet()
+	defer internal.BufferPoolSet(bf)
 	if n, err := com.WriteTo(bf); err != nil {
 		t.Errorf("command to []byte err: %d, %s", n, err)
 	}

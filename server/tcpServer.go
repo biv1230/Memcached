@@ -29,14 +29,14 @@ func (ts *Server) handler(conn net.Conn) {
 
 	bf, wf := bufio.NewReader(conn), bufio.NewWriter(conn)
 
-	com, err := internal.ReadCommand(bf)
+	com, err := ReadCommand(bf)
 	if err != nil {
 		internal.Lg.Errorf("failed to read protocol version - %s", err)
 		//internal.FaiConner.WriteTo(conn)
 		conn.Close()
 		return
 	}
-	if !bytes.Equal(com.Name, internal.IdentifyBytes) {
+	if !bytes.Equal(com.Name, IdentifyBytes) {
 		internal.Lg.Errorf("failed to read protocol version - %s", err)
 		//internal.FaiConner.WriteTo(conn)
 		conn.Close()
@@ -49,7 +49,7 @@ func (ts *Server) handler(conn net.Conn) {
 
 	switch protocolMagic {
 	case internal.ClientV1Str:
-		if _, err := internal.SucConner.WriteTo(wf); err != nil {
+		if _, err := SucConner.WriteTo(wf); err != nil {
 			internal.Lg.Errorf("failed to read protocol version - %s", err)
 			conn.Close()
 			return

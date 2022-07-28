@@ -36,19 +36,19 @@ func ConnOtherServer(ctx context.Context, remoteAddr, CmID string) (*clientV3, e
 		return nil, err
 	}
 	c.r, c.w = bufio.NewReader(conn), bufio.NewWriter(conn)
-	com := internal.Identify(internal.ClientV1, []byte(CmID))
+	com := Identify(internal.ClientV1, []byte(CmID))
 	if _, err := com.WriteTo(c.w); err != nil {
 		internal.Lg.Errorf("identify error:[%s]", err)
 		conn.Close()
 		return nil, err
 	}
-	rCom, err := internal.ReadCommand(c.r)
+	rCom, err := ReadCommand(c.r)
 	if err != nil {
 		internal.Lg.Errorf("wait return error:[%s]", err)
 		conn.Close()
 		return nil, err
 	}
-	if bytes.Equal(rCom.Name, internal.SucConnBytes) {
+	if bytes.Equal(rCom.Name, SucConnBytes) {
 		internal.Lg.Infof("[%s] connect suc !!!", conn.RemoteAddr())
 		c.name = c.remoteAddr
 		go c.IoLoop()
@@ -68,7 +68,7 @@ func (c *clientV3) Close() error {
 	return c.Close()
 }
 
-func (c *clientV3) ExecCommand(com *internal.Command) error {
+func (c *clientV3) ExecCommand(com *Command) error {
 
 	return nil
 }
@@ -79,7 +79,7 @@ func (c *clientV3) IoLoop() error {
 		case <-c.ctx.Done():
 			goto exit
 		default:
-			rCom, err := internal.ReadCommand(c.r)
+			rCom, err := ReadCommand(c.r)
 			if err != nil {
 				internal.Lg.Errorf("read from [%s] err:[%s]", c.RemoteAddr(), err)
 				goto exit
