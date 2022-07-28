@@ -95,8 +95,3 @@ func DecodeMessage(b []byte) (*Message, error) {
 	}
 	return msg, nil
 }
-
-type WaitingMessage struct {
-	Key     []byte
-	Waiting <-chan int
-}
