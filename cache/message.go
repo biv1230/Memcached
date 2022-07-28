@@ -15,22 +15,26 @@ const (
 )
 
 type Message struct {
-	Key       []byte
-	Md5       [16]byte
-	Timestamp int64
-	Body      []byte
+	Key            []byte
+	Md5            [16]byte
+	Timestamp      int64
+	ExpirationTime int64
+	Body           []byte
+	kt             *keyItem
 }
 
-func NewMessage(key, md5Value []byte, body []byte) (*Message, error) {
+func NewMessage(key, md5Value []byte, body []byte, ex time.Duration) (*Message, error) {
 	md5Check := md5.Sum(body)
 	if bytes.Equal(md5Check[:], md5Value) {
 		return nil, errors.New("md5 not same")
 	}
+	now := time.Now()
 	return &Message{
-		Key:       key,
-		Md5:       md5Check,
-		Timestamp: time.Now().UnixNano(),
-		Body:      body,
+		Key:            key,
+		Md5:            md5Check,
+		ExpirationTime: now.Add(ex).UnixNano(),
+		Timestamp:      now.UnixNano(),
+		Body:           body,
 	}, nil
 }
 
