@@ -15,6 +15,8 @@ type clientV1 struct {
 	cancel context.CancelFunc
 	net.Conn
 
+	cache *warehouse.Caches
+
 	r *bufio.Reader
 	w *bufio.Writer
 }

@@ -64,7 +64,7 @@ exit:
 func (sr *TcpConnects) connRemotes() {
 	for _, addr := range sr.RemoteAddrArr {
 		if addr != sr.ts.TCPAddress && !sr.IsHas(addr) {
-			c, err := ConnOtherServer(sr.ctx, addr, sr.TcpServerAddr)
+			c, err := ConnOtherServer(sr.ctx, addr, sr.TcpServerAddr, sr)
 			if err != nil {
 				internal.Lg.Errorf("[%s] remoter err:", addr, err)
 			} else {

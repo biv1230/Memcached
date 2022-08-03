@@ -19,6 +19,8 @@ type clientV3 struct {
 
 	r *bufio.Reader
 	w *bufio.Writer
+
+	cache *warehouse.Caches
 }
 
 func NewClientV3(ctx context.Context, remoteAddr string) *clientV3 {

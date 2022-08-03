@@ -54,7 +54,7 @@ func (ts *Server) handler(conn net.Conn) {
 			conn.Close()
 			return
 		}
-		p = NewClientV1(ts.ctx, conn, bf, string(com.Params[1]))
+		p = NewClientV1(ts.ctx, conn, bf, string(com.Params[1]), ts.mc)
 		ts.mc.AddConn(p)
 
 	case internal.ClientV2Str:

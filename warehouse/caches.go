@@ -1,4 +1,4 @@
-package cache
+package warehouse
 
 import (
 	"Memcached/internal"
@@ -7,13 +7,19 @@ import (
 	"time"
 )
 
+var cache *Caches
+
+func Start(ctxParent context.Context, cap int) {
+	cache = newCaches(ctxParent, cap)
+}
+
 type Caches struct {
 	Ctx    context.Context
 	Cancel context.CancelFunc
 	stores []*store
 }
 
-func NewCaches(ctxParent context.Context, cap int) *Caches {
+func newCaches(ctxParent context.Context, cap int) *Caches {
 	ctx, cancel := context.WithCancel(ctxParent)
 	stores := make([]*store, 0, cap)
 	for i := 0; i < cap; i++ {
