@@ -2,6 +2,7 @@ package main
 
 import (
 	"Memcached"
+	"context"
 	"time"
 )
 
@@ -10,7 +11,7 @@ func main() {
 		TcpServerAddr: "127.0.0.1:3001",
 		RemoteAddrArr: []string{"127.0.0.1:3001", "127.0.0.1:3002"},
 	}
-	Memcached.Start(cf, Memcached.Log)
+	Memcached.Start(context.Background(), cf, Memcached.Log)
 
 	time.Sleep(time.Hour)
 }

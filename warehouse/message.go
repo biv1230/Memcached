@@ -53,6 +53,9 @@ func (m *Message) ToByte() ([]byte, error) {
 	if err := binary.Write(b, binary.BigEndian, m.Timestamp); err != nil {
 		return nil, err
 	}
+	if err := binary.Write(b, binary.BigEndian, m.ExpirationTime); err != nil {
+		return nil, err
+	}
 	if err := binary.Write(b, binary.BigEndian, uint32(len(m.Body))); err != nil {
 		return nil, err
 	}
@@ -81,6 +84,9 @@ func DecodeMessage(b []byte) (*Message, error) {
 		return nil, err
 	}
 	if err := binary.Read(bf, binary.BigEndian, &msg.Timestamp); err != nil {
+		return nil, err
+	}
+	if err := binary.Read(bf, binary.BigEndian, &msg.ExpirationTime); err != nil {
 		return nil, err
 	}
 	var bodyLen uint32

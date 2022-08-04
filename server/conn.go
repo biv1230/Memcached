@@ -19,7 +19,9 @@ type Conner interface {
 	Send(m *warehouse.Message) error
 }
 
-type Connects struct {
+var Connects *connects
+
+type connects struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
@@ -32,7 +34,7 @@ type Connects struct {
 	sync.RWMutex
 }
 
-func (c *Connects) start() error {
+func (c *connects) start() error {
 	internal.Lg.Infof("tcp listening: [%s]", c.tcpAddr)
 	listener, err := net.Listen("tcp", c.tcpAddr)
 	if err != nil {
@@ -56,7 +58,7 @@ func (c *Connects) start() error {
 	}
 }
 
-func (c *Connects) handler(conn net.Conn) {
+func (c *connects) handler(conn net.Conn) {
 	internal.Lg.Infof("TCP: new client(%s)", conn.RemoteAddr().String())
 
 	bf, wf := bufio.NewReader(conn), bufio.NewWriter(conn)
@@ -87,7 +89,7 @@ func (c *Connects) handler(conn net.Conn) {
 			return
 		}
 		p = NewClientV1(c.ctx, conn, bf, wf, string(com.Params[1]), c.tcpAddr)
-		c.AddConn(p)
+		c.addConn(p)
 
 	case internal.ClientV2Str:
 		p = NewClientV2()
@@ -103,33 +105,31 @@ func (c *Connects) handler(conn net.Conn) {
 	}
 	switch protocolMagic {
 	case string(internal.ClientV1):
-		c.RemoveConn(p)
+		c.removeConn(p)
 	case string(internal.ClientV2):
 
 	}
 	p.Close()
 }
 
-func (c *Connects) Close() error {
+func (c *connects) Close() error {
 	c.cancel()
 	return nil
 }
 
-func CMStart(ctx context.Context, tcpAddr string, remoteAddrList []string, syncCheck time.Duration) (*Connects, error) {
-	mc := &Connects{
+func CMStart(ctx context.Context, tcpAddr string, remoteAddrList []string, syncCheck time.Duration) {
+	Connects = &connects{
 		tcpAddr:        tcpAddr,
 		remoteAddrList: remoteAddrList,
 		syncCheck:      syncCheck,
 		ConnMap:        make(map[string]Conner),
 	}
-	mc.ctx, mc.cancel = context.WithCancel(ctx)
-	go mc.start()
-	go mc.connRemotes()
-
-	return mc, nil
+	Connects.ctx, Connects.cancel = context.WithCancel(ctx)
+	go Connects.start()
+	go Connects.connRemotes()
 }
 
-func (c *Connects) syncCheckConnes() {
+func (c *connects) syncCheckConnes() {
 	ticker := time.NewTicker(c.syncCheck)
 	for {
 		select {
@@ -143,20 +143,20 @@ func (c *Connects) syncCheckConnes() {
 exit:
 }
 
-func (c *Connects) connRemotes() {
+func (c *connects) connRemotes() {
 	for _, addr := range c.remoteAddrList {
 		if addr != c.tcpAddr && !c.isHas(addr) {
 			con, err := c.connRemoter(c.ctx, addr)
 			if err != nil {
-				internal.Lg.Errorf("[%s] remoter err:", addr, err)
+				internal.Lg.Errorf("[%s] remoter err:[%s]", addr, err)
 			} else {
-				c.AddConn(con)
+				c.addConn(con)
 			}
 		}
 	}
 }
 
-func (c *Connects) connRemoter(ctx context.Context, remoteAddr string) (*clientV1, error) {
+func (c *connects) connRemoter(ctx context.Context, remoteAddr string) (*clientV1, error) {
 	conn, err := net.DialTimeout("tcp", remoteAddr, time.Second)
 	if err != nil {
 		return nil, err
@@ -186,12 +186,12 @@ func (c *Connects) connRemoter(ctx context.Context, remoteAddr string) (*clientV
 	}
 }
 
-func (c *Connects) isHas(name string) bool {
+func (c *connects) isHas(name string) bool {
 	_, ok := c.ConnMap[name]
 	return ok
 }
 
-func (c *Connects) AddConn(con Conner) {
+func (c *connects) addConn(con Conner) {
 	c.RLock()
 	if c.isHas(con.Name()) {
 		c.RUnlock()
@@ -210,14 +210,27 @@ func (c *Connects) AddConn(con Conner) {
 	}
 }
 
-func (c *Connects) AllCones() map[string]Conner {
+func (c *connects) allCones() map[string]Conner {
 	c.RLock()
 	defer c.RUnlock()
 	return c.ConnMap
 }
 
-func (c *Connects) RemoveConn(con Conner) {
+func (c *connects) removeConn(con Conner) {
 	c.Lock()
 	defer c.Unlock()
 	delete(c.ConnMap, con.Name())
+}
+
+func (c *connects) Notice(m *warehouse.Message) {
+	c.RLock()
+	defer c.RUnlock()
+	for _, co := range c.ConnMap {
+		con := co
+		go func() {
+			if err := con.Send(m); err != nil {
+				internal.Lg.Errorf("message send err:[%s]", err)
+			}
+		}()
+	}
 }
