@@ -1,6 +1,8 @@
 package server
 
 import (
+	"Memcached/internal"
+	"Memcached/warehouse"
 	"bufio"
 	"bytes"
 	"encoding/binary"
@@ -128,6 +130,16 @@ func decodeBody(r *bufio.Reader, p []byte) (*Command, error) {
 func CacheBefore(key []byte) *Command {
 	params := [][]byte{key}
 	return NewCommand(CacheBeforeBytes, params, nil)
+}
+
+func CacheAdd(key []byte, msg *warehouse.Message) (*Command, error) {
+	params := [][]byte{key}
+	body, err := msg.ToByte()
+	if err != nil {
+		internal.Lg.Errorf("message error %s", err)
+		return nil, err
+	}
+	return NewCommand(CachingBytes, params, body), nil
 }
 
 func Identify(ver []byte, id []byte) *Command {

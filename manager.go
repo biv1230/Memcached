@@ -7,7 +7,7 @@ import (
 )
 
 type Manager struct {
-	t *server.TcpConnects
+	t *server.Connects
 }
 
 func Start(cf *Config, lg internal.Logger) {

@@ -2,6 +2,7 @@ package server
 
 import (
 	"Memcached/internal"
+	"bufio"
 	"bytes"
 	"testing"
 )
@@ -14,7 +15,10 @@ func TestDecodeMessage(t *testing.T) {
 	}
 	bf := internal.BufferPoolGet()
 	defer internal.BufferPoolSet(bf)
-	if n, err := com.WriteTo(bf); err != nil {
+
+	w, f := bufio.NewWriter(bf), bufio.NewReader(bf)
+
+	if n, err := com.WriteTo(w); err != nil {
 		t.Errorf("command to []byte err: %d, %s", n, err)
 	}
 	t.Logf("%d", bf.Len())
@@ -22,7 +26,7 @@ func TestDecodeMessage(t *testing.T) {
 	if err != nil {
 		t.Errorf("buffer read err: %s", err)
 	}
-	newCom, err := DecodeCommand(bf, line[:len(line)-1])
+	newCom, err := decodeBody(f, line[:len(line)-1])
 	if err != nil {
 		t.Errorf("command decode []byte err: %s", err)
 	}

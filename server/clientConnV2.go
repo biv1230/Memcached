@@ -1,6 +1,7 @@
 package server
 
 import (
+	"Memcached/warehouse"
 	"bufio"
 	"context"
 	"net"
@@ -33,6 +34,6 @@ func (c *clientV2) IoLoop() error {
 	return nil
 }
 
-func (c *clientV2) WriterLoop() error {
+func (c *clientV2) Send(w *warehouse.Message) error {
 	return nil
 }

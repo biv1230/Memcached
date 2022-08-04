@@ -1,111 +1,223 @@
 package server
 
 import (
-	"Memcached/internal"
+	"bufio"
+	"bytes"
 	"context"
+	"net"
 	"sync"
 	"time"
+
+	"Memcached/internal"
+	"Memcached/warehouse"
 )
 
 type Conner interface {
 	Name() string
 	Close() error
 	IoLoop() error
+	Send(m *warehouse.Message) error
 }
 
-type Config struct {
-	TcpServerAddr string
-	RemoteAddrArr []string
-
-	SyncCheck time.Duration
-}
-
-type TcpConnects struct {
-	ID     string
+type Connects struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	*Config
-	ts      *Server
+	tcpAddr        string
+	remoteAddrList []string
+
+	syncCheck time.Duration
+
 	ConnMap map[string]Conner
 	sync.RWMutex
 }
 
-func CMStart(ctx context.Context, cf *Config) (*TcpConnects, error) {
-	mc := &TcpConnects{
-		ID:      cf.TcpServerAddr,
-		Config:  cf,
-		ConnMap: make(map[string]Conner),
+func (c *Connects) start() error {
+	internal.Lg.Infof("tcp listening: [%s]", c.tcpAddr)
+	listener, err := net.Listen("tcp", c.tcpAddr)
+	if err != nil {
+		internal.Lg.Errorf("listen (%s) failed - %s", c.tcpAddr, err)
+		return err
+	}
+	for {
+		select {
+		case <-c.ctx.Done():
+			internal.Lg.Infof("TCP: closing %s", listener.Addr())
+			return listener.Close()
+		default:
+			con, err := listener.Accept()
+			if err != nil {
+				internal.Lg.Errorf("client connect error - %s", err)
+			}
+			go func() {
+				c.handler(con)
+			}()
+		}
+	}
+}
+
+func (c *Connects) handler(conn net.Conn) {
+	internal.Lg.Infof("TCP: new client(%s)", conn.RemoteAddr().String())
+
+	bf, wf := bufio.NewReader(conn), bufio.NewWriter(conn)
+
+	com, err := ReadCommand(bf)
+	if err != nil {
+		internal.Lg.Errorf("failed to read protocol version - %s", err)
+		//internal.FaiConner.WriteTo(conn)
+		conn.Close()
+		return
+	}
+	if !bytes.Equal(com.Name, IdentifyBytes) {
+		internal.Lg.Errorf("failed to read protocol version - %s", err)
+		//internal.FaiConner.WriteTo(conn)
+		conn.Close()
+		return
+	}
+
+	protocolMagic := string(com.Params[0])
+	internal.Lg.Infof("client(%s): protocol magic [%s]", conn.RemoteAddr(), protocolMagic)
+	var p Conner
+
+	switch protocolMagic {
+	case internal.ClientV1Str:
+		if _, err := SucConner.WriteTo(wf); err != nil {
+			internal.Lg.Errorf("failed to read protocol version - %s", err)
+			conn.Close()
+			return
+		}
+		p = NewClientV1(c.ctx, conn, bf, wf, string(com.Params[1]), c.tcpAddr)
+		c.AddConn(p)
+
+	case internal.ClientV2Str:
+		p = NewClientV2()
+	default:
+		conn.Close()
+		internal.Lg.Errorf("client(%s) bad protocol magic %s", conn.RemoteAddr(), protocolMagic)
+		return
+	}
+
+	err = p.IoLoop()
+	if err != nil {
+		internal.Lg.Errorf("client(%s) - %s", conn.RemoteAddr(), err)
+	}
+	switch protocolMagic {
+	case string(internal.ClientV1):
+		c.RemoveConn(p)
+	case string(internal.ClientV2):
+
+	}
+	p.Close()
+}
+
+func (c *Connects) Close() error {
+	c.cancel()
+	return nil
+}
+
+func CMStart(ctx context.Context, tcpAddr string, remoteAddrList []string, syncCheck time.Duration) (*Connects, error) {
+	mc := &Connects{
+		tcpAddr:        tcpAddr,
+		remoteAddrList: remoteAddrList,
+		syncCheck:      syncCheck,
+		ConnMap:        make(map[string]Conner),
 	}
 	mc.ctx, mc.cancel = context.WithCancel(ctx)
-	ts := NewTcpServer(mc.ctx, cf.TcpServerAddr)
-	ts.mc = mc
-	mc.ts = ts
-	go mc.ts.Start()
+	go mc.start()
 	go mc.connRemotes()
 
 	return mc, nil
 }
 
-func (sr *TcpConnects) syncCheckConnes() {
-	ticker := time.NewTicker(sr.SyncCheck)
+func (c *Connects) syncCheckConnes() {
+	ticker := time.NewTicker(c.syncCheck)
 	for {
 		select {
-		case <-sr.ctx.Done():
+		case <-c.ctx.Done():
 			ticker.Stop()
 			goto exit
 		case <-ticker.C:
-			sr.connRemotes()
+			c.connRemotes()
 		}
 	}
 exit:
 }
 
-func (sr *TcpConnects) connRemotes() {
-	for _, addr := range sr.RemoteAddrArr {
-		if addr != sr.ts.TCPAddress && !sr.IsHas(addr) {
-			c, err := ConnOtherServer(sr.ctx, addr, sr.TcpServerAddr, sr)
+func (c *Connects) connRemotes() {
+	for _, addr := range c.remoteAddrList {
+		if addr != c.tcpAddr && !c.isHas(addr) {
+			con, err := c.connRemoter(c.ctx, addr)
 			if err != nil {
 				internal.Lg.Errorf("[%s] remoter err:", addr, err)
 			} else {
-				sr.AddConn(c)
+				c.AddConn(con)
 			}
 		}
 	}
 }
 
-func (sr *TcpConnects) IsHas(name string) bool {
-	_, ok := sr.ConnMap[name]
+func (c *Connects) connRemoter(ctx context.Context, remoteAddr string) (*clientV1, error) {
+	conn, err := net.DialTimeout("tcp", remoteAddr, time.Second)
+	if err != nil {
+		return nil, err
+	}
+	r, w := bufio.NewReader(conn), bufio.NewWriter(conn)
+	com := Identify(internal.ClientV1, []byte(c.tcpAddr))
+	if _, err := com.WriteTo(w); err != nil {
+		internal.Lg.Errorf("identify error:[%s]", err)
+		conn.Close()
+		return nil, err
+	}
+	rCom, err := ReadCommand(r)
+	if err != nil {
+		internal.Lg.Errorf("wait return error:[%s]", err)
+		conn.Close()
+		return nil, err
+	}
+	if bytes.Equal(rCom.Name, SucConnBytes) {
+		internal.Lg.Infof("[%s] connect suc !!!", conn.RemoteAddr())
+		c := NewClientV1(ctx, conn, r, w, remoteAddr, c.tcpAddr)
+		go c.IoLoop()
+		return c, nil
+	} else {
+		internal.Lg.Errorf("wait return error:[%s]", err)
+		conn.Close()
+		return nil, err
+	}
+}
+
+func (c *Connects) isHas(name string) bool {
+	_, ok := c.ConnMap[name]
 	return ok
 }
 
-func (sr *TcpConnects) AddConn(c Conner) {
-	sr.RLock()
-	if sr.IsHas(c.Name()) {
-		sr.RUnlock()
-		internal.Lg.Infof("[%s] conner has exist", c.Name())
+func (c *Connects) AddConn(con Conner) {
+	c.RLock()
+	if c.isHas(con.Name()) {
+		c.RUnlock()
+		internal.Lg.Infof("[%s] conner has exist", con.Name())
 		c.Close()
 		return
 	}
-	sr.RUnlock()
-	sr.Lock()
-	defer sr.Unlock()
-	if sr.IsHas(c.Name()) {
-		internal.Lg.Infof("[%s] conner has exist", c.Name())
+	c.RUnlock()
+	c.Lock()
+	defer c.Unlock()
+	if c.isHas(con.Name()) {
+		internal.Lg.Infof("[%s] conner has exist", con.Name())
 		c.Close()
 	} else {
-		sr.ConnMap[c.Name()] = c
+		c.ConnMap[con.Name()] = con
 	}
 }
 
-func (sr *TcpConnects) AllCones() map[string]Conner {
-	sr.RLock()
-	defer sr.RUnlock()
-	return sr.ConnMap
+func (c *Connects) AllCones() map[string]Conner {
+	c.RLock()
+	defer c.RUnlock()
+	return c.ConnMap
 }
 
-func (sr *TcpConnects) RemoveConn(c Conner) {
-	sr.Lock()
-	defer sr.Unlock()
-	delete(sr.ConnMap, c.Name())
+func (c *Connects) RemoveConn(con Conner) {
+	c.Lock()
+	defer c.Unlock()
+	delete(c.ConnMap, con.Name())
 }

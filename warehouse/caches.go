@@ -7,53 +7,76 @@ import (
 	"time"
 )
 
-var cache *Caches
+var Cache *caches
 
 func Start(ctxParent context.Context, cap int) {
-	cache = newCaches(ctxParent, cap)
+	Cache = newCaches(ctxParent, cap)
 }
 
-type Caches struct {
-	Ctx    context.Context
-	Cancel context.CancelFunc
+type caches struct {
+	ctx    context.Context
+	cancel context.CancelFunc
 	stores []*store
+
+	sync.RWMutex
+	cachingKeys map[string]*cachingProcess
 }
 
-func newCaches(ctxParent context.Context, cap int) *Caches {
+func newCaches(ctxParent context.Context, cap int) *caches {
 	ctx, cancel := context.WithCancel(ctxParent)
 	stores := make([]*store, 0, cap)
 	for i := 0; i < cap; i++ {
 		s := newStore(ctx, i)
 		stores = append(stores, s)
 	}
-	return &Caches{
-		Ctx:    ctx,
-		Cancel: cancel,
-		stores: stores,
+	return &caches{
+		ctx:         ctx,
+		cancel:      cancel,
+		stores:      stores,
+		cachingKeys: make(map[string]*cachingProcess),
 	}
 }
 
-func (m *Caches) determineStore(key []byte) int {
+func (m *caches) determineStore(key []byte) uint8 {
 	l := key[len(key)-1]
-	return int(l) % len(m.stores)
+	return uint8(l) % uint8(len(m.stores))
 }
 
-func (m *Caches) Add(msg *Message) {
+func (m *caches) BeforeAdd(key []byte) {
+	newCachingProcess(string(key))
+}
+
+func (m *caches) Add(msg *Message) {
 	index := m.determineStore(msg.Key)
 	m.stores[index].save(msg)
+	closeCachingProcess(string(msg.Key))
 }
 
-func (m *Caches) Get(key []byte) *Message {
+func (m *caches) Get(key []byte) *Message {
 	index := m.determineStore(key)
-	return m.stores[index].get(string(key))
+	keyStr := string(key)
+	msg := m.stores[index].get(keyStr)
+	if msg == nil {
+		m.RLock()
+		if cp, ok := m.cachingKeys[keyStr]; ok {
+			t := time.NewTimer(500 * time.Millisecond)
+			select {
+			case <-cp.process:
+			case <-t.C:
+			}
+			return m.stores[index].get(keyStr)
+		}
+		return nil
+	}
+	return msg
 }
 
-func (m *Caches) Delete(key []byte) {
+func (m *caches) Delete(key []byte) {
 	index := m.determineStore(key)
 	m.stores[index].delete(string(key))
 }
 
-func (m *Caches) Len() int {
+func (m *caches) Len() int {
 	l := 0
 	for _, v := range m.stores {
 		l += v.len()
@@ -156,4 +179,37 @@ func (s *store) syncDeleteExpiration() {
 	}
 exit:
 	internal.Lg.Info("sync delete expiration message close")
+}
+
+type cachingProcess struct {
+	process chan uint
+}
+
+func newCachingProcess(key string) {
+	cp := &cachingProcess{
+		process: make(chan uint),
+	}
+	go func() {
+		Cache.Lock()
+		Cache.cachingKeys[key] = cp
+		Cache.Unlock()
+
+		t := time.NewTimer(500 * time.Millisecond)
+		select {
+		case <-t.C:
+			internal.Lg.Errorf("超时")
+			close(cp.process)
+		case <-cp.process:
+			internal.Lg.Errorf("save suc")
+		}
+		Cache.Lock()
+		delete(Cache.cachingKeys, key)
+		Cache.Unlock()
+	}()
+}
+
+func closeCachingProcess(key string) {
+	if cp, ok := Cache.cachingKeys[key]; ok {
+		close(cp.process)
+	}
 }
