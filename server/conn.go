@@ -103,12 +103,13 @@ func (c *connects) handler(conn net.Conn) {
 	if err != nil {
 		internal.Lg.Errorf("client(%s) - %s", conn.RemoteAddr(), err)
 	}
-	switch protocolMagic {
-	case string(internal.ClientV1):
-		c.removeConn(p)
-	case string(internal.ClientV2):
-
-	}
+	//switch protocolMagic {
+	//case string(internal.ClientV1):
+	//
+	//case string(internal.ClientV2):
+	//
+	//}
+	c.removeConn(p)
 	p.Close()
 }
 
