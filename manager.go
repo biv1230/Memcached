@@ -18,7 +18,7 @@ func GetMessage(key []byte) *warehouse.Message {
 	return warehouse.Cache.Get(key)
 }
 
-func SaveMessage(key, md5 []byte, body []byte, expire time.Duration) error {
+func SaveMessage(key, md5, body []byte, expire time.Duration) error {
 	msg, err := warehouse.NewMessage(key, md5, body, expire)
 	if err != nil {
 		return err

@@ -18,6 +18,7 @@ const (
 	CacheBeforeString = "BEFORE"
 	CachingString     = "CACHING"
 	CacheAfterString  = "AFTER"
+	PingString        = "PING"
 )
 
 var (
@@ -31,13 +32,15 @@ var (
 	CacheBeforeBytes = []byte(CacheBeforeString)
 	CachingBytes     = []byte(CachingString)
 	CacheAfterBytes  = []byte(CacheAfterString)
+	PingBytes        = []byte(PingString)
 
-	SucConner *Command
-	FaiConner *Command
+	SucCommand  *Command
+	FaiCommand  *Command
+	PingCommand *Command
 )
 
 func init() {
-	SucConner, FaiConner = sucConn(), failConn()
+	SucCommand, FaiCommand, PingCommand = sucConn(), failConn(), pingCommand()
 }
 
 type Command struct {
@@ -142,8 +145,8 @@ func CacheAdd(key []byte, msg *warehouse.Message) (*Command, error) {
 	return NewCommand(CachingBytes, params, body), nil
 }
 
-func Identify(ver []byte, id []byte) *Command {
-	params := [][]byte{ver, id}
+func Identify(id []byte) *Command {
+	params := [][]byte{id}
 	return NewCommand(IdentifyBytes, params, nil)
 }
 
@@ -165,4 +168,8 @@ func ReadCommand(r *bufio.Reader) (*Command, error) {
 		line = line[:len(line)-1]
 	}
 	return decodeBody(r, line)
+}
+
+func pingCommand() *Command {
+	return NewCommand(PingBytes, nil, nil)
 }

@@ -12,13 +12,6 @@ import (
 	"Memcached/warehouse"
 )
 
-type Conner interface {
-	Name() string
-	Close() error
-	IoLoop() error
-	Send(m *warehouse.Message) error
-}
-
 var Connects *connects
 
 type connects struct {
@@ -30,15 +23,15 @@ type connects struct {
 
 	syncCheck time.Duration
 
-	ConnMap map[string]Conner
+	ConnMap map[string]*clientV1
 	sync.RWMutex
 }
 
 func (c *connects) start() error {
-	internal.Lg.Infof("tcp listening: [%s]", c.tcpAddr)
+	internal.Lg.Infof("TCP start on: [%s]", c.tcpAddr)
 	listener, err := net.Listen("tcp", c.tcpAddr)
 	if err != nil {
-		internal.Lg.Errorf("listen (%s) failed - %s", c.tcpAddr, err)
+		internal.Lg.Errorf("listen (%s) failed - [%s]", c.tcpAddr, err)
 		return err
 	}
 	for {
@@ -47,70 +40,47 @@ func (c *connects) start() error {
 			internal.Lg.Infof("TCP: closing %s", listener.Addr())
 			return listener.Close()
 		default:
-			con, err := listener.Accept()
-			if err != nil {
+			if con, err := listener.Accept(); err != nil {
 				internal.Lg.Errorf("client connect error - %s", err)
+			} else {
+				go func() {
+					c.handler(con)
+				}()
 			}
-			go func() {
-				c.handler(con)
-			}()
 		}
 	}
 }
 
 func (c *connects) handler(conn net.Conn) {
-	internal.Lg.Infof("TCP: new client(%s)", conn.RemoteAddr().String())
+	internal.Lg.Infof("TCP: new client-(%s)", conn.RemoteAddr())
 
 	bf, wf := bufio.NewReader(conn), bufio.NewWriter(conn)
 
 	com, err := ReadCommand(bf)
 	if err != nil {
 		internal.Lg.Errorf("failed to read protocol version - %s", err)
-		//internal.FaiConner.WriteTo(conn)
 		conn.Close()
 		return
 	}
 	if !bytes.Equal(com.Name, IdentifyBytes) {
-		internal.Lg.Errorf("failed to read protocol version - %s", err)
-		//internal.FaiConner.WriteTo(conn)
+		internal.Lg.Errorf("client(%s) bad identify", conn.RemoteAddr())
+		conn.Close()
+		return
+	}
+	if _, err := SucCommand.WriteTo(wf); err != nil {
+		internal.Lg.Errorf("failed to write protocol version - %s", err)
 		conn.Close()
 		return
 	}
 
-	protocolMagic := string(com.Params[0])
-	internal.Lg.Infof("client(%s): protocol magic [%s]", conn.RemoteAddr(), protocolMagic)
-	var p Conner
-
-	switch protocolMagic {
-	case internal.ClientV1Str:
-		if _, err := SucConner.WriteTo(wf); err != nil {
-			internal.Lg.Errorf("failed to read protocol version - %s", err)
-			conn.Close()
-			return
-		}
-		p = NewClientV1(c.ctx, conn, bf, wf, string(com.Params[1]), c.tcpAddr)
-		c.addConn(p)
-
-	case internal.ClientV2Str:
-		p = NewClientV2()
-	default:
-		conn.Close()
-		internal.Lg.Errorf("client(%s) bad protocol magic %s", conn.RemoteAddr(), protocolMagic)
-		return
-	}
+	p := NewClientV1(c.ctx, conn, bf, wf, string(com.Params[0]), c.tcpAddr)
+	c.addConn(p)
 
 	err = p.IoLoop()
 	if err != nil {
 		internal.Lg.Errorf("client(%s) - %s", conn.RemoteAddr(), err)
 	}
-	//switch protocolMagic {
-	//case string(internal.ClientV1):
-	//
-	//case string(internal.ClientV2):
-	//
-	//}
 	c.removeConn(p)
-	p.Close()
 }
 
 func (c *connects) Close() error {
@@ -123,11 +93,15 @@ func CMStart(ctx context.Context, tcpAddr string, remoteAddrList []string, syncC
 		tcpAddr:        tcpAddr,
 		remoteAddrList: remoteAddrList,
 		syncCheck:      syncCheck,
-		ConnMap:        make(map[string]Conner),
+		ConnMap:        make(map[string]*clientV1),
 	}
 	Connects.ctx, Connects.cancel = context.WithCancel(ctx)
-	go Connects.start()
-	go Connects.connRemotes()
+	go func() {
+		if err := Connects.start(); err != nil {
+			Connects.Close()
+		}
+	}()
+	go Connects.syncCheckConnes()
 }
 
 func (c *connects) syncCheckConnes() {
@@ -142,16 +116,26 @@ func (c *connects) syncCheckConnes() {
 		}
 	}
 exit:
+	internal.Lg.Info("sync check connes stop")
 }
 
 func (c *connects) connRemotes() {
+	conns := c.allCones()
 	for _, addr := range c.remoteAddrList {
-		if addr != c.tcpAddr && !c.isHas(addr) {
-			con, err := c.connRemoter(c.ctx, addr)
+		if addr != c.tcpAddr {
+			if con, ok := conns[addr]; ok {
+				if _, err := PingCommand.WriteTo(con.w); err == nil {
+					continue
+				} else {
+					internal.Lg.Errorf("[%s] remoter write err:[%s]", addr, err)
+					c.removeConn(con)
+				}
+			}
+			nCon, err := c.connRemoter(c.ctx, addr)
 			if err != nil {
 				internal.Lg.Errorf("[%s] remoter err:[%s]", addr, err)
 			} else {
-				c.addConn(con)
+				c.addConn(nCon)
 			}
 		}
 	}
@@ -163,7 +147,7 @@ func (c *connects) connRemoter(ctx context.Context, remoteAddr string) (*clientV
 		return nil, err
 	}
 	r, w := bufio.NewReader(conn), bufio.NewWriter(conn)
-	com := Identify(internal.ClientV1, []byte(c.tcpAddr))
+	com := Identify([]byte(c.tcpAddr))
 	if _, err := com.WriteTo(w); err != nil {
 		internal.Lg.Errorf("identify error:[%s]", err)
 		conn.Close()
@@ -177,9 +161,9 @@ func (c *connects) connRemoter(ctx context.Context, remoteAddr string) (*clientV
 	}
 	if bytes.Equal(rCom.Name, SucConnBytes) {
 		internal.Lg.Infof("[%s] connect suc !!!", conn.RemoteAddr())
-		c := NewClientV1(ctx, conn, r, w, remoteAddr, c.tcpAddr)
-		go c.IoLoop()
-		return c, nil
+		v1 := NewClientV1(ctx, conn, r, w, remoteAddr, c.tcpAddr)
+		go v1.IoLoop()
+		return v1, nil
 	} else {
 		internal.Lg.Errorf("wait return error:[%s]", err)
 		conn.Close()
@@ -192,41 +176,40 @@ func (c *connects) isHas(name string) bool {
 	return ok
 }
 
-func (c *connects) addConn(con Conner) {
+func (c *connects) addConn(p *clientV1) {
 	c.RLock()
-	if c.isHas(con.Name()) {
+	if c.isHas(p.Name()) {
 		c.RUnlock()
-		internal.Lg.Infof("[%s] conner has exist", con.Name())
-		c.Close()
+		internal.Lg.Infof("[%s] conner has exist", p.Name())
+		p.Close()
 		return
 	}
 	c.RUnlock()
 	c.Lock()
 	defer c.Unlock()
-	if c.isHas(con.Name()) {
-		internal.Lg.Infof("[%s] conner has exist", con.Name())
-		c.Close()
+	if c.isHas(p.Name()) {
+		internal.Lg.Infof("[%s] conner has exist", p.Name())
+		p.Close()
 	} else {
-		c.ConnMap[con.Name()] = con
+		c.ConnMap[p.Name()] = p
 	}
 }
 
-func (c *connects) allCones() map[string]Conner {
+func (c *connects) allCones() map[string]*clientV1 {
 	c.RLock()
 	defer c.RUnlock()
 	return c.ConnMap
 }
 
-func (c *connects) removeConn(con Conner) {
+func (c *connects) removeConn(p *clientV1) {
 	c.Lock()
 	defer c.Unlock()
-	delete(c.ConnMap, con.Name())
+	delete(c.ConnMap, p.Name())
 }
 
+// send message to all service
 func (c *connects) Notice(m *warehouse.Message) {
-	c.RLock()
-	defer c.RUnlock()
-	for _, co := range c.ConnMap {
+	for _, co := range c.allCones() {
 		con := co
 		go func() {
 			if err := con.Send(m); err != nil {
