@@ -6,6 +6,7 @@ import (
 	"crypto/md5"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"time"
 )
@@ -15,26 +16,39 @@ const (
 )
 
 type Message struct {
-	Key            []byte
-	Md5            [16]byte
-	Timestamp      int64
-	ExpirationTime int64
-	Body           []byte
-	kt             *keyItem
+	Key       []byte   `json:"key"`
+	Md5       [16]byte `json:"md5"`
+	Timestamp int64    `json:"timestamp,omitempty"`
+	HoldTime  int16    `json:"hold_time"`
+	Body      []byte   `json:"body"`
+	kt        *keyItem
 }
 
-func NewMessage(key, md5Value []byte, body []byte, ex time.Duration) (*Message, error) {
+func NewMessage(key, md5Value []byte, body []byte, holdTime int16) (*Message, error) {
 	md5Check := md5.Sum(body)
 	if bytes.Equal(md5Check[:], md5Value) {
 		return nil, errors.New("md5 not same")
 	}
-	now := time.Now()
 	return &Message{
-		Key:            key,
-		Md5:            md5Check,
-		ExpirationTime: now.Add(ex).UnixNano(),
-		Timestamp:      now.UnixNano(),
-		Body:           body,
+		Key:       key,
+		Md5:       md5Check,
+		HoldTime:  holdTime,
+		Timestamp: time.Now().UnixNano(),
+		Body:      body,
+	}, nil
+}
+
+func NewMessageByStr(key, md5Value, body string, holdTime int16) (*Message, error) {
+	md5Check := md5.Sum([]byte(body))
+	if md5Value != fmt.Sprintf("%x", md5Check) {
+		return nil, errors.New("md5 not same")
+	}
+	return &Message{
+		Key:       []byte(key),
+		Md5:       md5Check,
+		HoldTime:  holdTime,
+		Timestamp: time.Now().UnixNano(),
+		Body:      []byte(body),
 	}, nil
 }
 
@@ -53,7 +67,7 @@ func (m *Message) ToByte() ([]byte, error) {
 	if err := binary.Write(b, binary.BigEndian, m.Timestamp); err != nil {
 		return nil, err
 	}
-	if err := binary.Write(b, binary.BigEndian, m.ExpirationTime); err != nil {
+	if err := binary.Write(b, binary.BigEndian, m.HoldTime); err != nil {
 		return nil, err
 	}
 	if err := binary.Write(b, binary.BigEndian, uint32(len(m.Body))); err != nil {
@@ -86,7 +100,7 @@ func DecodeMessage(b []byte) (*Message, error) {
 	if err := binary.Read(bf, binary.BigEndian, &msg.Timestamp); err != nil {
 		return nil, err
 	}
-	if err := binary.Read(bf, binary.BigEndian, &msg.ExpirationTime); err != nil {
+	if err := binary.Read(bf, binary.BigEndian, &msg.HoldTime); err != nil {
 		return nil, err
 	}
 	var bodyLen uint32

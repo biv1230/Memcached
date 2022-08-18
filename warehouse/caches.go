@@ -10,6 +10,9 @@ import (
 var Cache *caches
 
 func Start(ctxParent context.Context, cap int) {
+	if cap <= 0 {
+		cap = 10
+	}
 	Cache = newCaches(ctxParent, cap)
 }
 
@@ -18,7 +21,6 @@ type caches struct {
 	cancel context.CancelFunc
 	stores []*store
 
-	sync.RWMutex
 	cachingKeys map[string]*cachingProcess
 }
 
@@ -57,7 +59,6 @@ func (m *caches) Get(key []byte) *Message {
 	keyStr := string(key)
 	msg := m.stores[index].get(keyStr)
 	if msg == nil {
-		m.RLock()
 		if cp, ok := m.cachingKeys[keyStr]; ok {
 			t := time.NewTimer(500 * time.Millisecond)
 			select {
@@ -109,12 +110,15 @@ func (s *store) save(m *Message) {
 	key := string(m.Key)
 	om := s.get(key)
 	isNewKeyItem := false
+
+	expiredTime := time.Now().Add(time.Duration(m.HoldTime) * time.Second).UnixNano()
+
 	if om != nil {
 		m.kt, om.kt = om.kt, nil
-		m.kt.pastTime = m.ExpirationTime
+		m.kt.pastTime = expiredTime
 	} else {
 		isNewKeyItem = true
-		m.kt = newKeyItem(key, m.ExpirationTime)
+		m.kt = newKeyItem(key, expiredTime)
 	}
 	s.Lock()
 	defer s.Unlock()
@@ -133,7 +137,7 @@ func (s *store) len() int {
 }
 
 func (s *store) get(key string) *Message {
-	s.RLocker()
+	s.RLock()
 	defer s.RUnlock()
 	if k, ok := s.maps[key]; ok {
 		return k
@@ -190,9 +194,7 @@ func newCachingProcess(key string) {
 		process: make(chan uint),
 	}
 	go func() {
-		Cache.Lock()
 		Cache.cachingKeys[key] = cp
-		Cache.Unlock()
 
 		t := time.NewTimer(500 * time.Millisecond)
 		select {
@@ -202,9 +204,7 @@ func newCachingProcess(key string) {
 		case <-cp.process:
 			internal.Lg.Errorf("save suc")
 		}
-		Cache.Lock()
 		delete(Cache.cachingKeys, key)
-		Cache.Unlock()
 	}()
 }
 

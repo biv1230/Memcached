@@ -5,7 +5,6 @@ import (
 	"Memcached/server"
 	"Memcached/warehouse"
 	"context"
-	"time"
 )
 
 func Start(ctx context.Context, cf *Config, lg internal.Logger) {
@@ -18,12 +17,8 @@ func GetMessage(key []byte) *warehouse.Message {
 	return warehouse.Cache.Get(key)
 }
 
-func SaveMessage(key, md5, body []byte, expire time.Duration) error {
-	msg, err := warehouse.NewMessage(key, md5, body, expire)
-	if err != nil {
-		return err
-	}
-	server.Connects.Notice(msg)
+func SaveMessage(msg *warehouse.Message) error {
+	server.Notice(msg)
 	warehouse.Cache.Add(msg)
 	return nil
 }

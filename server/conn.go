@@ -208,8 +208,9 @@ func (c *connects) removeConn(p *clientV1) {
 }
 
 // send message to all service
-func (c *connects) Notice(m *warehouse.Message) {
-	for _, co := range c.allCones() {
+
+func Notice(m *warehouse.Message) {
+	for _, co := range Connects.allCones() {
 		con := co
 		go func() {
 			if err := con.Send(m); err != nil {
