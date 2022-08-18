@@ -15,6 +15,8 @@ func ReceiveCommandExec(c *Command) error {
 		return ReceiveSave(c)
 	case CacheAfterString:
 		return ReceiveAfter(c)
+	case PingString:
+		return nil
 	default:
 		return fmt.Errorf("unknow command %s", c.Name)
 	}
