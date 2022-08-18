@@ -159,9 +159,12 @@ func failConn() *Command {
 }
 
 func ReadCommand(r *bufio.Reader) (*Command, error) {
-	line, err := r.ReadBytes(NewLine)
+	line, err := r.ReadSlice(NewLine)
+	internal.Lg.Info(string(line), err)
 	if err != nil {
-		return nil, err
+		if err != io.EOF {
+			return nil, err
+		}
 	}
 	line = line[:len(line)-1]
 	if len(line) > 0 && line[len(line)-1] == '\r' {

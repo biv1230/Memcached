@@ -24,10 +24,14 @@ func httpStart() {
 		err := c.BindJSON(&body)
 		if err != nil {
 			internal.Lg.Errorf("parse body err:[%s]", err)
+			c.JSON(http.StatusOK, gin.H{"err": err.Error()})
+			return
 		}
-		nMsg, nil := warehouse.NewMessageByStr(body.Key, body.Md5, body.Body, body.HoldTime)
+		nMsg, err := warehouse.NewMessageByStr(body.Key, body.Md5, body.Body, body.HoldTime)
 		if err != nil {
 			internal.Lg.Errorf("new msg err:[%s]", err)
+			c.JSON(http.StatusOK, gin.H{"err": err.Error()})
+			return
 		}
 		err = Memcached.SaveMessage(nMsg)
 		c.JSON(http.StatusOK, gin.H{"msg": "suc", "code": "suc"})
