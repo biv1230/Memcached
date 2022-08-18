@@ -65,12 +65,12 @@ exit:
 }
 
 func (c *clientV1) Send(m *warehouse.Message) error {
-	body, err := m.ToByte()
+	com, err := CacheAdd(m.Key, m)
 	if err != nil {
-		internal.Lg.Errorf("message to byte array err:[%s]", err)
+		internal.Lg.Errorf("create command err:[%s]", err)
 		return err
 	}
-	if _, err := c.w.Write(body); err != nil {
+	if _, err := com.WriteTo(c.w); err != nil {
 		internal.Lg.Errorf("message to byte array err:[%s]", err)
 		return err
 	}
