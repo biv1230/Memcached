@@ -105,6 +105,14 @@ func (c *Command) WriteTo(w *bufio.Writer) (int, error) {
 	return total, w.Flush()
 }
 
+func (c *Command) String() string {
+	params := ""
+	for _, b := range params {
+		params += string(b)
+	}
+	return fmt.Sprintf("Name=%s,Params=%s,Body=%s", c.Name, params, c.Body)
+}
+
 func decodeBody(r *bufio.Reader, p []byte) (*Command, error) {
 	params := bytes.Split(p, ByteSpace)
 	var buf [4]byte
@@ -158,7 +166,6 @@ func failConn() *Command {
 
 func ReadCommand(r *bufio.Reader) (*Command, error) {
 	line, err := r.ReadSlice(NewLine)
-	internal.Lg.Info(string(line), err)
 	if err != nil {
 		if err != io.EOF {
 			return nil, err

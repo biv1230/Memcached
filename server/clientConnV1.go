@@ -49,7 +49,9 @@ func (c *clientV1) IoLoop() error {
 			internal.Lg.Infof("%s close connect", c.RemoteAddr())
 			goto exit
 		default:
+			internal.Lg.Info(c.RemoteAddr(), c.LocalAddr())
 			com, err := ReadCommand(c.r)
+			internal.Lg.Infof("%s", com)
 			if err != nil {
 				internal.Lg.Errorf("[%s] %s", c.RemoteAddr(), err)
 				goto exit
