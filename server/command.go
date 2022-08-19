@@ -115,13 +115,11 @@ func decodeBody(r *bufio.Reader, p []byte) (*Command, error) {
 		return nil, err
 	}
 	l := binary.BigEndian.Uint32(bufs)
-	if l > 0 {
-		body = make([]byte, l)
-		if n, err := io.ReadFull(r, body); err != nil || n != int(l) {
+	body = make([]byte, l)
+	if n, err := io.ReadFull(r, body); err != nil || n != int(l) {
+		if err != io.EOF {
 			return nil, errors.New(fmt.Sprintf("err:[%s],body len[%d],get[%d]", err, l, n))
 		}
-	} else {
-		body = nil
 	}
 	return &Command{
 		Name:   params[0],
