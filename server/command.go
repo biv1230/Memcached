@@ -162,6 +162,8 @@ func ReadCommand(r *bufio.Reader) (*Command, error) {
 	if err != nil {
 		if err != io.EOF {
 			return nil, err
+		} else {
+			return nil, nil
 		}
 	}
 	line = line[:len(line)-1]
