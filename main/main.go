@@ -7,6 +7,7 @@ import (
 	"context"
 	"github.com/gin-gonic/gin"
 	"net/http"
+	"time"
 )
 
 type Message struct {
@@ -56,7 +57,7 @@ func httpStart() {
 
 func main() {
 	cf := &Memcached.Config{
-		SyncCheck:     20000,
+		SyncCheck:     10 * time.Second,
 		StoreCap:      10,
 		TcpServerAddr: "127.0.0.1:3001",
 		RemoteAddrArr: []string{"127.0.0.1:3001", "127.0.0.1:3002", "127.0.0.1:3003"},

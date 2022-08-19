@@ -166,6 +166,7 @@ func failConn() *Command {
 
 func ReadCommand(r *bufio.Reader) (*Command, error) {
 	line, err := r.ReadSlice(NewLine)
+	internal.Lg.Info(string(line), err)
 	if err != nil {
 		if err != io.EOF {
 			return nil, err
