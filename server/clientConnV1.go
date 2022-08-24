@@ -57,7 +57,7 @@ func (c *clientV1) IoLoop() error {
 				goto exit
 			} else {
 				if com != nil {
-					if err := ReceiveCommandExec(com); err != nil {
+					if err := ReceiveCommandExec(c, com); err != nil {
 						internal.Lg.Errorf("[%s] error message: [%s]", c.RemoteAddr(), err)
 					}
 				}

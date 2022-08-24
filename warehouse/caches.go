@@ -3,13 +3,20 @@ package warehouse
 import (
 	"Memcached/internal"
 	"context"
+	"encoding/binary"
 	"sync"
 	"time"
 )
 
+const (
+	InitStatus uint8 = iota
+	NormalStatus
+	CloseStatus
+)
+
 var Cache *caches
 
-func Start(ctxParent context.Context, cap int) {
+func Start(ctxParent context.Context, cap uint8) {
 	if cap <= 0 {
 		cap = 10
 	}
@@ -20,14 +27,16 @@ type caches struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	stores []*store
+	status uint8
 
 	cachingKeys map[string]*cachingProcess
 }
 
-func newCaches(ctxParent context.Context, cap int) *caches {
+func newCaches(ctxParent context.Context, cap uint8) *caches {
 	ctx, cancel := context.WithCancel(ctxParent)
 	stores := make([]*store, 0, cap)
-	for i := 0; i < cap; i++ {
+	var i uint8
+	for i = 0; i < cap; i++ {
 		s := newStore(ctx, i)
 		stores = append(stores, s)
 	}
@@ -52,6 +61,16 @@ func (m *caches) Add(msg *Message) {
 	index := m.determineStore(msg.Key)
 	m.stores[index].save(msg)
 	closeCachingProcess(string(msg.Key))
+}
+
+func (m *caches) AddBody(body []byte) error {
+	msg, err := DecodeMessage(body)
+	if err != nil {
+		internal.Lg.Errorf("body decode err:[%s]", err)
+		return err
+	}
+	m.Add(msg)
+	return nil
 }
 
 func (m *caches) Get(key []byte) *Message {
@@ -85,17 +104,45 @@ func (m *caches) Len() int {
 	return l
 }
 
+func (m *caches) Cap() ([]byte, error) {
+	b := internal.BufferPoolGet()
+	defer internal.BufferPoolSet(b)
+	err := binary.Write(b, binary.BigEndian, uint8(len(m.stores)))
+	if err != nil {
+		internal.Lg.Error(err)
+		return nil, err
+	}
+	return b.Bytes(), nil
+}
+
+func (m *caches) Range(fn func(msg *Message) error) error {
+	for _, v := range m.stores {
+		items := v.getAllKQ()
+		for _, item := range items {
+			msg := v.get(item.key)
+			if err := fn(msg); err != nil {
+				internal.Lg.Error(err)
+			}
+		}
+	}
+	return nil
+}
+
+func (m *caches) SetStatus(status uint8) {
+	m.status = status
+}
+
 type store struct {
 	ctx    context.Context
 	cancel context.CancelFunc
-	index  int
+	index  uint8
 	sync.RWMutex
 	maps       map[string]*Message
 	kq         *keyQueue
 	syncDelete time.Duration
 }
 
-func newStore(ctx context.Context, index int) *store {
+func newStore(ctx context.Context, index uint8) *store {
 	ctx, cancel := context.WithCancel(ctx)
 	return &store{
 		ctx:    ctx,
@@ -183,6 +230,14 @@ func (s *store) syncDeleteExpiration() {
 	}
 exit:
 	internal.Lg.Info("sync delete expiration message close")
+}
+
+func (s *store) getAllKQ() []*keyItem {
+	s.RLock()
+	defer s.RUnlock()
+	dst := make([]*keyItem, len(s.kq.items))
+	copy(dst, s.kq.items)
+	return dst
 }
 
 type cachingProcess struct {

@@ -12,13 +12,19 @@ import (
 )
 
 const (
-	IdentifyString    = "IDENTIFY"
-	SucConnString     = "CONNECTSUC"
-	FaiConnString     = "CONNECTFAI"
-	CacheBeforeString = "BEFORE"
-	CachingString     = "CACHING"
-	CacheAfterString  = "AFTER"
-	PingString        = "PING"
+	IdentifyString      = "IDENTIFY"
+	SucConnString       = "CONNECTSUC"
+	FaiConnString       = "CONNECTFAI"
+	CacheBeforeString   = "BEFORE"
+	CachingString       = "CACHING"
+	CacheAfterString    = "AFTER"
+	PingString          = "PING"
+	WarehouseInitString = "WAREHOUSEINIT"
+	WarehouseInfoString = "WAREHOUSEINFO"
+
+	SendingMsgString = "SENDINGMSG"
+	SendSucString    = "SENDSUC"
+	SendFaiString    = "SENDFAI"
 )
 
 var (
@@ -26,21 +32,27 @@ var (
 	ByteSpace        = []byte(" ")
 	ByteNewLine      = []byte{NewLine}
 
-	IdentifyBytes    = []byte(IdentifyString)
-	SucConnBytes     = []byte(SucConnString)
-	FaiConnBytes     = []byte(FaiConnString)
-	CacheBeforeBytes = []byte(CacheBeforeString)
-	CachingBytes     = []byte(CachingString)
-	CacheAfterBytes  = []byte(CacheAfterString)
-	PingBytes        = []byte(PingString)
+	IdentifyBytes      = []byte(IdentifyString)
+	SucConnBytes       = []byte(SucConnString)
+	FaiConnBytes       = []byte(FaiConnString)
+	CacheBeforeBytes   = []byte(CacheBeforeString)
+	CachingBytes       = []byte(CachingString)
+	CacheAfterBytes    = []byte(CacheAfterString)
+	PingBytes          = []byte(PingString)
+	WarehouseInitBytes = []byte(WarehouseInitString)
+	WarehouseInfoBytes = []byte(WarehouseInfoString)
 
-	SucCommand  *Command
-	FaiCommand  *Command
-	PingCommand *Command
+	SendingMSGBytes = []byte(SendingMsgString)
+	SendSucBytes    = []byte(SendSucString)
+	SendFailBytes   = []byte(SendFaiString)
+
+	SucCommand, FaiCommand, PingCommand *Command
+	SendSucCommand, SendFaiCommand      *Command
 )
 
 func init() {
 	SucCommand, FaiCommand, PingCommand = sucConn(), failConn(), pingCommand()
+	SendSucCommand, SendFaiCommand = sendSucCommand(), sendFailCommand()
 }
 
 type Command struct {
@@ -151,6 +163,24 @@ func CacheAdd(key []byte, msg *warehouse.Message) (*Command, error) {
 	return NewCommand(CachingBytes, params, body), nil
 }
 
+func WarehouseInitCommand() *Command {
+	return NewCommand(WarehouseInitBytes, nil, nil)
+}
+
+func WarehouseInfoCommand(cap []byte) *Command {
+	params := [][]byte{cap}
+	return NewCommand(WarehouseInfoBytes, params, nil)
+}
+
+func SendingMsgCommand(msg *warehouse.Message) (*Command, error) {
+	body, err := msg.ToByte()
+	if err != nil {
+		internal.Lg.Errorf("message error %s", err)
+		return nil, err
+	}
+	return NewCommand(SendingMSGBytes, nil, body), nil
+}
+
 func Identify(id []byte) *Command {
 	params := [][]byte{id}
 	return NewCommand(IdentifyBytes, params, nil)
@@ -162,6 +192,14 @@ func sucConn() *Command {
 
 func failConn() *Command {
 	return NewCommand(FaiConnBytes, nil, nil)
+}
+
+func sendSucCommand() *Command {
+	return NewCommand(SendSucBytes, nil, nil)
+}
+
+func sendFailCommand() *Command {
+	return NewCommand(SendFailBytes, nil, nil)
 }
 
 func ReadCommand(r *bufio.Reader) (*Command, error) {
