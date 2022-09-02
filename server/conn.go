@@ -1,6 +1,7 @@
 package server
 
 import (
+	"Memcached/warehouse"
 	"bufio"
 	"bytes"
 	"context"
@@ -9,7 +10,6 @@ import (
 	"time"
 
 	"Memcached/internal"
-	"Memcached/warehouse"
 )
 
 var Connects *connects
@@ -25,6 +25,8 @@ type connects struct {
 
 	ConnMap map[string]*clientV1
 	sync.RWMutex
+
+	writerAllChan chan *Command
 }
 
 func (c *connects) start() error {
@@ -83,6 +85,25 @@ func (c *connects) handler(conn net.Conn) {
 	c.removeConn(p)
 }
 
+func (c *connects) syncWrite() {
+switchFro:
+	for {
+		select {
+		case <-c.ctx.Done():
+			break switchFro
+		case com := <-c.writerAllChan:
+			for _, co := range Connects.allCones() {
+				con := co
+				go func() {
+					if _, err := com.WriteTo(con.w); err != nil {
+						internal.Lg.Errorf("message send err:[%s]", err)
+					}
+				}()
+			}
+		}
+	}
+}
+
 func (c *connects) Close() error {
 	c.cancel()
 	return nil
@@ -94,6 +115,7 @@ func CMStart(ctx context.Context, tcpAddr string, remoteAddrList []string, syncC
 		remoteAddrList: remoteAddrList,
 		syncCheck:      syncCheck,
 		ConnMap:        make(map[string]*clientV1),
+		writerAllChan:  make(chan *Command, 1000),
 	}
 	Connects.ctx, Connects.cancel = context.WithCancel(ctx)
 	go func() {
@@ -207,15 +229,12 @@ func (c *connects) removeConn(p *clientV1) {
 	delete(c.ConnMap, p.Name())
 }
 
-// send message to all service
-
-func Notice(m *warehouse.Message) {
-	for _, co := range Connects.allCones() {
-		con := co
-		go func() {
-			if err := con.Send(m); err != nil {
-				internal.Lg.Errorf("message send err:[%s]", err)
-			}
-		}()
+func (c *connects) AddMessage(msg *warehouse.Message) error {
+	warehouse.Cache.Add(msg)
+	com, err := CacheAdd(msg.Key, msg)
+	if err != nil {
+		return err
 	}
+	c.writerAllChan <- com
+	return nil
 }

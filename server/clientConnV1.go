@@ -2,7 +2,6 @@ package server
 
 import (
 	"Memcached/internal"
-	"Memcached/warehouse"
 	"bufio"
 	"context"
 	"fmt"
@@ -16,6 +15,8 @@ type clientV1 struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	net.Conn
+
+	writeChan chan *Command
 
 	r *bufio.Reader
 	w *bufio.Writer
@@ -69,16 +70,31 @@ exit:
 	return fmt.Errorf("%s close connect", c.RemoteAddr())
 }
 
-func (c *clientV1) Send(m *warehouse.Message) error {
-	com, err := CacheAdd(m.Key, m)
-	if err != nil {
-		internal.Lg.Errorf("create command err:[%s]", err)
-		return err
+func (c *clientV1) WriteLoop() {
+switchFor:
+	for {
+		select {
+		case <-c.ctx.Done():
+			break switchFor
+		case com := <-c.writeChan:
+			if _, err := com.WriteTo(c.w); err != nil {
+				internal.Lg.Errorf("write command err:[%s]", err)
+			}
+			c.w.Flush()
+		}
 	}
-	if _, err := com.WriteTo(c.w); err != nil {
-		internal.Lg.Errorf("message to byte array err:[%s]", err)
-		return err
-	}
-	c.w.Flush()
-	return nil
 }
+
+//func (c *clientV1) Send(m *warehouse.Message) error {
+//	com, err := CacheAdd(m.Key, m)
+//	if err != nil {
+//		internal.Lg.Errorf("create command err:[%s]", err)
+//		return err
+//	}
+//	if _, err := com.WriteTo(c.w); err != nil {
+//		internal.Lg.Errorf("message to byte array err:[%s]", err)
+//		return err
+//	}
+//	c.w.Flush()
+//	return nil
+//}

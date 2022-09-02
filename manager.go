@@ -18,7 +18,5 @@ func GetMessage(key []byte) *warehouse.Message {
 }
 
 func SaveMessage(msg *warehouse.Message) error {
-	server.Notice(msg)
-	warehouse.Cache.Add(msg)
-	return nil
+	return server.Connects.AddMessage(msg)
 }

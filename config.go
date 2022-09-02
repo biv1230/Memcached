@@ -7,7 +7,7 @@ import (
 type Config struct {
 	TcpServerAddr string
 	RemoteAddrArr []string
-	StoreCap      int
+	StoreCap      uint8
 
 	SyncCheck time.Duration
 }
